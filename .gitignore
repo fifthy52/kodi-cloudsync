@@ -6,6 +6,7 @@
 !repository.cloudsync/service.cloudsync/*.zip
 !service.cloudsync/*.zip
 !repository.cloudsync.zip
+!service.cloudsync-*.zip
 *.pyc
 __pycache__/
 
