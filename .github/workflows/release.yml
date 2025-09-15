@@ -100,3 +100,34 @@ jobs:
           echo "No changes to commit"
         fi
 
+    - name: Create GitHub Release
+      if: steps.get_version.outputs.SKIP_BUILD == 'false'
+      run: |
+        # Extract changelog from addons.xml
+        CHANGELOG=$(python3 -c "
+import xml.etree.ElementTree as ET
+tree = ET.parse('addons.xml')
+addon = tree.find('.//addon[@id=\"service.cloudsync\"]')
+news = addon.find('.//news')
+if news is not None and news.text:
+    lines = [line.strip() for line in news.text.strip().split('\n') if line.strip()]
+    for line in lines[:3]:  # First 3 changelog entries
+        print('- ' + line)
+")
+
+        # Create release
+        gh release create "v${{ steps.get_version.outputs.VERSION }}" \
+          service.cloudsync/service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip \
+          --title "CloudSync v${{ steps.get_version.outputs.VERSION }}" \
+          --notes "## Changes
+$CHANGELOG
+
+## Installation
+Download the ZIP file and install manually in Kodi, or install via [CloudSync Repository](https://github.com/fifthy52/kodi-cloudsync).
+
+## Repository Installation
+1. Download [repository.cloudsync.zip](https://github.com/fifthy52/kodi-cloudsync/raw/main/repository.cloudsync.zip)
+2. Install in Kodi: Settings → Add-ons → Install from zip file"
+      env:
+        GH_TOKEN: ${{ github.token }}
+
