@@ -5,6 +5,7 @@ import threading
 from datetime import datetime
 import xbmcaddon
 from dropbox_provider_simple import DropboxProviderSimple
+from file_change_tracker import FileChangeTracker
 import xbmc
 
 
@@ -16,6 +17,7 @@ class HybridSyncManager:
         self.dropbox = None
         self.sync_lock = threading.Lock()
         self.monitor = xbmc.Monitor()
+        self.change_tracker = FileChangeTracker()
         
         # Database paths
         self.local_db_path = None
@@ -44,6 +46,11 @@ class HybridSyncManager:
             # Setup local database
             if not self._setup_local_database():
                 return False
+
+            # Cleanup orphaned file tracking data
+            orphaned_count = self.change_tracker.cleanup_orphaned_tracking_data()
+            if orphaned_count > 0:
+                xbmc.log(f"[CloudSync] Cleaned up {orphaned_count} orphaned file tracking entries", xbmc.LOGINFO)
             
             # Initialize Dropbox if enabled
             if self.dropbox_enabled:
@@ -615,11 +622,17 @@ class HybridSyncManager:
                 xbmc.log("[CloudSync] No local favourites.xml file found", xbmc.LOGINFO)
                 return
 
+            # Check if file has changed since last sync
+            has_changed, change_reason = self.change_tracker.has_file_changed(favorites_path, "favorites")
+            if not has_changed:
+                xbmc.log(f"[CloudSync] Skipping favourites.xml sync - no changes detected ({change_reason})", xbmc.LOGINFO)
+                return
+
             # Read local favorites.xml file
             with open(favorites_path, 'r', encoding='utf-8') as f:
                 local_content = f.read()
 
-            xbmc.log(f"[CloudSync] Read local favourites.xml ({len(local_content)} chars)", xbmc.LOGINFO)
+            xbmc.log(f"[CloudSync] Read local favourites.xml ({len(local_content)} chars) - change reason: {change_reason}", xbmc.LOGINFO)
 
             # Check remote version for conflict resolution
             remote_content = None
@@ -652,6 +665,8 @@ class HybridSyncManager:
 
                 if success:
                     xbmc.log("[CloudSync] Successfully uploaded favourites.xml to Dropbox", xbmc.LOGINFO)
+                    # Mark file as synced
+                    self.change_tracker.mark_file_synced(favorites_path, "favorites")
                 else:
                     xbmc.log("[CloudSync] Failed to upload favourites.xml to Dropbox", xbmc.LOGERROR)
             elif not should_upload:
@@ -771,10 +786,16 @@ class HybridSyncManager:
 
             local_content = None
             if local_exists:
+                # Check if file has changed since last sync
+                has_changed, change_reason = self.change_tracker.has_file_changed(file_path, f"userdata/{filename}")
+                if not has_changed:
+                    xbmc.log(f"[CloudSync] Skipping {filename} sync - no changes detected ({change_reason})", xbmc.LOGINFO)
+                    return
+
                 # Read local file
                 with open(file_path, 'r', encoding='utf-8') as f:
                     local_content = f.read()
-                xbmc.log(f"[CloudSync] Read local {filename} ({len(local_content)} chars)", xbmc.LOGINFO)
+                xbmc.log(f"[CloudSync] Read local {filename} ({len(local_content)} chars) - change reason: {change_reason}", xbmc.LOGINFO)
 
             # Check remote version for conflict resolution
             remote_content = None
@@ -829,6 +850,8 @@ class HybridSyncManager:
 
                 if success:
                     xbmc.log(f"[CloudSync] Successfully uploaded {filename} to Dropbox", xbmc.LOGINFO)
+                    # Mark file as synced
+                    self.change_tracker.mark_file_synced(file_path, f"userdata/{filename}")
                 else:
                     xbmc.log(f"[CloudSync] Failed to upload {filename} to Dropbox", xbmc.LOGERROR)
 
@@ -837,6 +860,8 @@ class HybridSyncManager:
                 with open(file_path, 'w', encoding='utf-8') as f:
                     f.write(remote_content)
                 xbmc.log(f"[CloudSync] Successfully downloaded {filename} from Dropbox ({len(remote_content)} chars)", xbmc.LOGINFO)
+                # Mark file as synced after download
+                self.change_tracker.mark_file_synced(file_path, f"userdata/{filename}")
 
         except Exception as e:
             xbmc.log(f"[CloudSync] Error syncing {filename}: {e}", xbmc.LOGERROR)
@@ -949,10 +974,16 @@ class HybridSyncManager:
 
             local_content = None
             if local_exists:
+                # Check if file has changed since last sync
+                has_changed, change_reason = self.change_tracker.has_file_changed(config_path, f"addon_data/{addon_id}/{config_file}")
+                if not has_changed:
+                    xbmc.log(f"[CloudSync] Skipping {addon_id}/{config_file} sync - no changes detected ({change_reason})", xbmc.LOGINFO)
+                    return
+
                 # Read local file
                 with open(config_path, 'r', encoding='utf-8') as f:
                     local_content = f.read()
-                xbmc.log(f"[CloudSync] Read local {addon_id}/{config_file} ({len(local_content)} chars)", xbmc.LOGINFO)
+                xbmc.log(f"[CloudSync] Read local {addon_id}/{config_file} ({len(local_content)} chars) - change reason: {change_reason}", xbmc.LOGINFO)
 
             # Check remote version
             remote_content = None
@@ -1007,6 +1038,8 @@ class HybridSyncManager:
 
                 if success:
                     xbmc.log(f"[CloudSync] Successfully uploaded {addon_id}/{config_file} to Dropbox", xbmc.LOGINFO)
+                    # Mark file as synced
+                    self.change_tracker.mark_file_synced(config_path, f"addon_data/{addon_id}/{config_file}")
                 else:
                     xbmc.log(f"[CloudSync] Failed to upload {addon_id}/{config_file} to Dropbox", xbmc.LOGERROR)
 
@@ -1019,6 +1052,8 @@ class HybridSyncManager:
                 with open(config_path, 'w', encoding='utf-8') as f:
                     f.write(remote_content)
                 xbmc.log(f"[CloudSync] Successfully downloaded {addon_id}/{config_file} from Dropbox ({len(remote_content)} chars)", xbmc.LOGINFO)
+                # Mark file as synced after download
+                self.change_tracker.mark_file_synced(config_path, f"addon_data/{addon_id}/{config_file}")
 
         except Exception as e:
             xbmc.log(f"[CloudSync] Error syncing {addon_id}/{config_file}: {e}", xbmc.LOGERROR)

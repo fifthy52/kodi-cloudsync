@@ -34,5 +34,6 @@
     <setting id="debug_favorites" type="action" label="Debug Favorites" action="RunScript(special://home/addons/service.cloudsync/resources/lib/debug_favorites.py)"/>
     <setting id="test_favorites" type="action" label="Test Favorites API" action="RunScript(special://home/addons/service.cloudsync/resources/lib/test_favorites.py)"/>
     <setting id="debug_favorites_data" type="action" label="Debug Favorites Data" action="RunScript(special://home/addons/service.cloudsync/resources/lib/debug_favorites_data.py)"/>
+    <setting id="debug_change_tracking" type="action" label="Debug Change Tracking" action="RunScript(special://home/addons/service.cloudsync/resources/lib/debug_change_tracking.py)"/>
   </category>
 </settings>
