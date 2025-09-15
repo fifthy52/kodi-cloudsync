@@ -2,6 +2,9 @@
 
 # Build artifacts
 *.zip
+# Exception: repository zip files are needed
+!repository.cloudsync/service.cloudsync/*.zip
+!repository.cloudsync.zip
 *.pyc
 __pycache__/
 
