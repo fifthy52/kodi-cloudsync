@@ -867,7 +867,7 @@ class HybridSyncManager:
             xbmc.log(f"[CloudSync] Error syncing {filename}: {e}", xbmc.LOGERROR)
 
     def sync_addon_data(self):
-        """Sync selective addon_data files with conflict resolution."""
+        """Sync complete addon_data directory with all addon configurations."""
         if not self.sync_addon_data_enabled:
             return
 
@@ -879,231 +879,132 @@ class HybridSyncManager:
             except:
                 addon_data_path = xbmc.translatePath("special://profile/addon_data/")
 
-            # List of important addon types and their config files to sync
-            important_addons = {
-                # Media center addons
-                'script.trakt': ['settings.xml'],
-                'plugin.video.netflix': ['settings.xml'],
-                'plugin.video.youtube': ['settings.xml', 'cookies.dat'],
-                'plugin.video.jellyfin': ['settings.xml'],
-                'plugin.video.plex': ['settings.xml'],
-                'plugin.video.themoviedb.helper': ['settings.xml'],
-                'plugin.video.stream-cinema': ['settings.xml'],
-                'plugin.audio.tidal2': ['settings.xml'],
-                'plugin.audio.poslouchej.radia': ['settings.xml'],
+            if not os.path.exists(addon_data_path):
+                xbmc.log("[CloudSync] addon_data directory not found", xbmc.LOGWARNING)
+                return
 
-                # Script addons
-                'script.audio.profiles': ['settings.xml'],
-                'script.embuary.helper': ['settings.xml'],
-                'script.globalsearch': ['settings.xml'],
-                'script.kcleaner': ['settings.xml'],
-                'script.logviewer': ['settings.xml'],
-                'script.skinshortcuts': ['settings.xml'],
-                'script.skinvariables': ['settings.xml'],  # Essential for Arctic Zephyr - widget configs stored in nodes/ will be handled separately
-                'script.xbmcbackup': ['settings.xml'],
+            xbmc.log("[CloudSync] Starting full addon_data directory sync", xbmc.LOGINFO)
 
-                # Service addons
-                'service.subtitles.opensubtitles': ['settings.xml'],
-                'service.aml-vnc': ['settings.xml'],
-                'service.coreelec.settings': ['settings.xml'],
-                'service.odroidn2.oled': ['settings.xml'],
+            # Sync entire addon_data directory recursively
+            self._sync_directory_recursive(addon_data_path, "addon_data", exclude_patterns=[
+                '*.tmp', '*.temp', '*.log', '*.cache', '__pycache__',
+                'Thumbnails', 'temp', '.DS_Store', 'Thumbs.db'
+            ])
 
-                # Weather addons
-                'weather.gismeteo': ['settings.xml'],
-                'weather.openweathermap.extended': ['settings.xml'],
-
-                # Metadata addons
-                'metadata.themoviedb.org.python': ['settings.xml'],
-                'metadata.tvshows.themoviedb.org.python': ['settings.xml'],
-                'metadata.tvshows.thetvdb.com.v4.python': ['settings.xml'],
-                'metadata.album.universal': ['settings.xml'],
-                'metadata.artists.universal': ['settings.xml'],
-
-                # Input/peripheral addons
-                'inputstream.adaptive': ['settings.xml'],
-                'peripheral.joystick': ['settings.xml'],
-
-                # Game addons
-                'game.libretro.pcsx-rearmed': ['settings.xml'],
-
-                # Library tools
-                'plugin.library.node.editor': ['settings.xml'],
-                'script.module.simplecache': ['settings.xml'],
-            }
-
-            # Auto-discover all skin addons
-            import os
-            for item in os.listdir(addon_data_path):
-                if item.startswith('skin.') and os.path.isdir(os.path.join(addon_data_path, item)):
-                    important_addons[item] = ['settings.xml']
-                    xbmc.log(f"[CloudSync] Auto-discovered skin addon: {item}", xbmc.LOGINFO)
-
-            import os
-            for addon_id, config_files in important_addons.items():
-                addon_path = os.path.join(addon_data_path, addon_id)
-
-                # Check if addon is installed
-                if os.path.exists(addon_path):
-                    xbmc.log(f"[CloudSync] Found addon {addon_id}, syncing config files", xbmc.LOGINFO)
-
-                    for config_file in config_files:
-                        self._sync_addon_config_file(addon_id, config_file)
-                else:
-                    xbmc.log(f"[CloudSync] Addon {addon_id} not installed, skipping", xbmc.LOGDEBUG)
-
-            # Special handling for script.skinvariables nodes directory
-            skinvariables_path = os.path.join(addon_data_path, 'script.skinvariables')
-            if os.path.exists(skinvariables_path):
-                self._sync_skinvariables_nodes(skinvariables_path)
+            xbmc.log("[CloudSync] Completed full addon_data directory sync", xbmc.LOGINFO)
 
         except Exception as e:
             xbmc.log(f"[CloudSync] Error in addon_data sync: {e}", xbmc.LOGERROR)
 
-    def _sync_addon_config_file(self, addon_id, config_file):
-        """Sync a single addon config file with conflict resolution."""
+
+    def _sync_directory_recursive(self, local_dir_path, remote_dir_prefix, exclude_patterns=None):
+        """Recursively sync entire directory with smart filtering."""
+        if exclude_patterns is None:
+            exclude_patterns = []
+
         try:
-            # Get full path to config file
-            try:
-                import xbmcvfs
-                config_path = xbmcvfs.translatePath(f"special://profile/addon_data/{addon_id}/{config_file}")
-            except:
-                config_path = xbmc.translatePath(f"special://profile/addon_data/{addon_id}/{config_file}")
-
-            # Check if file exists locally
-            local_exists = False
-            try:
-                import xbmcvfs
-                local_exists = xbmcvfs.exists(config_path)
-            except:
-                import os
-                local_exists = os.path.exists(config_path)
-
-            local_content = None
-            if local_exists:
-                # Check if file has changed since last sync
-                has_changed, change_reason = self.change_tracker.has_file_changed(config_path, f"addon_data/{addon_id}/{config_file}")
-                if not has_changed:
-                    xbmc.log(f"[CloudSync] Skipping {addon_id}/{config_file} sync - no changes detected ({change_reason})", xbmc.LOGINFO)
-                    return
-
-                # Read local file
-                with open(config_path, 'r', encoding='utf-8') as f:
-                    local_content = f.read()
-                xbmc.log(f"[CloudSync] Read local {addon_id}/{config_file} ({len(local_content)} chars) - change reason: {change_reason}", xbmc.LOGINFO)
-
-            # Check remote version
-            remote_content = None
-            if self.dropbox_enabled and self.dropbox:
-                if self.use_compression:
-                    remote_content = self.dropbox.download_file_compressed(f"addon_data/{addon_id}/{config_file}")
-                else:
-                    remote_content = self.dropbox.download_file(f"addon_data/{addon_id}/{config_file}")
-
-            # Conflict resolution logic
-            should_upload = True
-            should_download = False
-
-            if local_content and remote_content:
-                # Both exist - apply conflict resolution
-                if self.conflict_resolution == "local":
-                    should_upload = True
-                    should_download = False
-                elif self.conflict_resolution == "remote":
-                    should_upload = False
-                    should_download = True
-                elif self.conflict_resolution == "newer":
-                    # For addon configs, prefer local changes (user likely configured locally)
-                    # But if remote is significantly larger, prefer remote
-                    local_size = len(local_content)
-                    remote_size = len(remote_content)
-                    if remote_size > local_size * 1.2:  # 20% larger threshold
-                        should_upload = False
-                        should_download = True
-                    else:
-                        should_upload = True
-                        should_download = False
-                    xbmc.log(f"[CloudSync] {addon_id}/{config_file} conflict resolution: local {local_size} chars vs remote {remote_size} chars", xbmc.LOGINFO)
-            elif local_content and not remote_content:
-                # Only local exists - upload
-                should_upload = True
-                should_download = False
-            elif not local_content and remote_content:
-                # Only remote exists - download
-                should_upload = False
-                should_download = True
-            else:
-                # Neither exists - nothing to do
-                return
-
-            # Upload to Dropbox if needed
-            if should_upload and local_content and self.dropbox_enabled and self.dropbox:
-                if self.use_compression:
-                    success = self.dropbox.upload_file_compressed(f"addon_data/{addon_id}/{config_file}", local_content)
-                else:
-                    success = self.dropbox.upload_file(f"addon_data/{addon_id}/{config_file}", local_content)
-
-                if success:
-                    xbmc.log(f"[CloudSync] Successfully uploaded {addon_id}/{config_file} to Dropbox", xbmc.LOGINFO)
-                    # Mark file as synced
-                    self.change_tracker.mark_file_synced(config_path, f"addon_data/{addon_id}/{config_file}")
-                else:
-                    xbmc.log(f"[CloudSync] Failed to upload {addon_id}/{config_file} to Dropbox", xbmc.LOGERROR)
-
-            # Download from Dropbox if needed
-            if should_download and remote_content:
-                # Create directory if it doesn't exist
-                import os
-                os.makedirs(os.path.dirname(config_path), exist_ok=True)
-
-                with open(config_path, 'w', encoding='utf-8') as f:
-                    f.write(remote_content)
-                xbmc.log(f"[CloudSync] Successfully downloaded {addon_id}/{config_file} from Dropbox ({len(remote_content)} chars)", xbmc.LOGINFO)
-                # Mark file as synced after download
-                self.change_tracker.mark_file_synced(config_path, f"addon_data/{addon_id}/{config_file}")
-
-        except Exception as e:
-            xbmc.log(f"[CloudSync] Error syncing {addon_id}/{config_file}: {e}", xbmc.LOGERROR)
-
-    def _sync_skinvariables_nodes(self, skinvariables_path):
-        """Sync script.skinvariables nodes directory - contains widget configs and viewtypes."""
-        try:
-            nodes_path = os.path.join(skinvariables_path, 'nodes')
-            if not os.path.exists(nodes_path):
-                xbmc.log("[CloudSync] script.skinvariables nodes directory not found", xbmc.LOGDEBUG)
-                return
-
-            xbmc.log("[CloudSync] Syncing script.skinvariables nodes directory for skin widget configs", xbmc.LOGINFO)
-
-            # Recursively sync all files in nodes directory
             import os
-            for root, dirs, files in os.walk(nodes_path):
+            import fnmatch
+
+            sync_count = 0
+            skip_count = 0
+            total_size = 0
+
+            xbmc.log(f"[CloudSync] Scanning directory: {local_dir_path}", xbmc.LOGINFO)
+
+            for root, dirs, files in os.walk(local_dir_path):
+                # Filter out excluded directories
+                dirs[:] = [d for d in dirs if not any(fnmatch.fnmatch(d, pattern) for pattern in exclude_patterns)]
+
                 for file in files:
-                    if file.endswith(('.xml', '.json', '.txt')):  # Common skin config file types
-                        file_path = os.path.join(root, file)
+                    # Skip excluded file patterns
+                    if any(fnmatch.fnmatch(file, pattern) for pattern in exclude_patterns):
+                        skip_count += 1
+                        continue
 
-                        # Create relative path for remote storage
-                        rel_path = os.path.relpath(file_path, skinvariables_path)
-                        remote_path = f"addon_data/script.skinvariables/{rel_path.replace(os.sep, '/')}"
+                    file_path = os.path.join(root, file)
 
-                        self._sync_skinvariables_file(file_path, remote_path)
+                    # Skip non-text files that are likely not configuration
+                    if not self._is_sync_worthy_file(file_path):
+                        skip_count += 1
+                        continue
+
+                    # Create relative path for remote storage
+                    rel_path = os.path.relpath(file_path, local_dir_path)
+                    remote_path = f"{remote_dir_prefix}/{rel_path.replace(os.sep, '/')}"
+
+                    # Check if file has changed since last sync
+                    has_changed, change_reason = self.change_tracker.has_file_changed(file_path, f"full_addon_data/{remote_path}")
+                    if not has_changed:
+                        skip_count += 1
+                        continue
+
+                    # Sync the file
+                    success = self._sync_single_file(file_path, remote_path, f"full_addon_data/{remote_path}")
+                    if success:
+                        sync_count += 1
+                        try:
+                            total_size += os.path.getsize(file_path)
+                        except:
+                            pass
+
+            xbmc.log(f"[CloudSync] Directory sync complete: {sync_count} files synced, {skip_count} skipped, ~{total_size//1024}KB processed", xbmc.LOGINFO)
 
         except Exception as e:
-            xbmc.log(f"[CloudSync] Error syncing script.skinvariables nodes: {e}", xbmc.LOGERROR)
+            xbmc.log(f"[CloudSync] Error in directory recursive sync: {e}", xbmc.LOGERROR)
 
-    def _sync_skinvariables_file(self, file_path, remote_path):
-        """Sync a single script.skinvariables file."""
+    def _is_sync_worthy_file(self, file_path):
+        """Determine if file is worth syncing (configuration, not cache/temp)."""
+        import os
+
+        file_name = os.path.basename(file_path).lower()
+        file_ext = os.path.splitext(file_name)[1].lower()
+
+        # Sync worthy extensions
+        sync_extensions = {
+            '.xml', '.json', '.txt', '.cfg', '.conf', '.ini', '.properties',
+            '.dat', '.db', '.sqlite', '.sql', '.csv', '.yaml', '.yml'
+        }
+
+        # Always sync these extensions
+        if file_ext in sync_extensions:
+            return True
+
+        # Skip binary/media files
+        skip_extensions = {
+            '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.ico', '.tiff',
+            '.mp4', '.avi', '.mkv', '.mp3', '.wav', '.flac',
+            '.zip', '.rar', '.7z', '.tar', '.gz',
+            '.exe', '.dll', '.so', '.dylib'
+        }
+
+        if file_ext in skip_extensions:
+            return False
+
+        # Skip cache/temp files by name
+        skip_names = {'cache', 'temp', 'tmp', 'log', 'debug'}
+        if any(skip_name in file_name for skip_name in skip_names):
+            return False
+
+        # Files without extension - check if they look like config
+        if not file_ext:
+            # Small files without extension might be config
+            try:
+                file_size = os.path.getsize(file_path)
+                if file_size < 1024 * 1024:  # Less than 1MB
+                    return True
+            except:
+                pass
+
+        # Default to syncing if unsure
+        return True
+
+    def _sync_single_file(self, file_path, remote_path, tracking_key):
+        """Sync a single file with conflict resolution."""
         try:
-            # Check if file has changed since last sync
-            has_changed, change_reason = self.change_tracker.has_file_changed(file_path, f"skinvariables/{remote_path}")
-            if not has_changed:
-                xbmc.log(f"[CloudSync] Skipping {remote_path} sync - no changes detected ({change_reason})", xbmc.LOGDEBUG)
-                return
-
             # Read local file
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 local_content = f.read()
-
-            xbmc.log(f"[CloudSync] Processing skinvariables file {remote_path} ({len(local_content)} chars) - reason: {change_reason}", xbmc.LOGINFO)
 
             # Check remote version for conflict resolution
             remote_content = None
@@ -1113,7 +1014,7 @@ class HybridSyncManager:
                 else:
                     remote_content = self.dropbox.download_file(remote_path)
 
-            # Apply conflict resolution (prefer local for skin configs as user likely configured locally)
+            # Apply conflict resolution (prefer local for addon configs)
             should_upload = True
             should_download = False
 
@@ -1124,10 +1025,10 @@ class HybridSyncManager:
                     should_upload = False
                     should_download = True
                 elif self.conflict_resolution == "newer":
-                    # For skin configs, prefer local unless remote is significantly larger
+                    # For addon configs, prefer local unless remote is significantly larger
                     local_size = len(local_content)
                     remote_size = len(remote_content)
-                    if remote_size > local_size * 1.5:  # 50% larger threshold for skin configs
+                    if remote_size > local_size * 1.3:  # 30% larger threshold
                         should_upload = False
                         should_download = True
 
@@ -1139,11 +1040,13 @@ class HybridSyncManager:
                     success = self.dropbox.upload_file(remote_path, local_content)
 
                 if success:
-                    xbmc.log(f"[CloudSync] Successfully uploaded skinvariables file {remote_path}", xbmc.LOGINFO)
                     # Mark file as synced
-                    self.change_tracker.mark_file_synced(file_path, f"skinvariables/{remote_path}")
+                    self.change_tracker.mark_file_synced(file_path, tracking_key)
+                    xbmc.log(f"[CloudSync] Uploaded: {remote_path} ({len(local_content)} chars)", xbmc.LOGDEBUG)
+                    return True
                 else:
-                    xbmc.log(f"[CloudSync] Failed to upload skinvariables file {remote_path}", xbmc.LOGERROR)
+                    xbmc.log(f"[CloudSync] Failed to upload: {remote_path}", xbmc.LOGERROR)
+                    return False
 
             # Download from Dropbox if needed
             if should_download and remote_content:
@@ -1153,9 +1056,14 @@ class HybridSyncManager:
 
                 with open(file_path, 'w', encoding='utf-8') as f:
                     f.write(remote_content)
-                xbmc.log(f"[CloudSync] Successfully downloaded skinvariables file {remote_path} ({len(remote_content)} chars)", xbmc.LOGINFO)
+
                 # Mark file as synced after download
-                self.change_tracker.mark_file_synced(file_path, f"skinvariables/{remote_path}")
+                self.change_tracker.mark_file_synced(file_path, tracking_key)
+                xbmc.log(f"[CloudSync] Downloaded: {remote_path} ({len(remote_content)} chars)", xbmc.LOGDEBUG)
+                return True
+
+            return False
 
         except Exception as e:
-            xbmc.log(f"[CloudSync] Error syncing skinvariables file {file_path}: {e}", xbmc.LOGERROR)
+            xbmc.log(f"[CloudSync] Error syncing file {file_path}: {e}", xbmc.LOGERROR)
+            return False
