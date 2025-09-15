@@ -33,3 +33,6 @@ tokens.json
 
 # Claude artifacts
 .claude/
+
+# User data samples (for analysis only)
+Userdata/

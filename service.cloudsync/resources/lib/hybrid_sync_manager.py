@@ -33,6 +33,7 @@ class HybridSyncManager:
         self.sync_favorites_enabled = True
         self.sync_userdata_enabled = False
         self.sync_addon_data_enabled = False
+        self.use_compression = True
         self.conflict_resolution = 'newer'
     
     def initialize(self):
@@ -351,6 +352,7 @@ class HybridSyncManager:
             self.sync_favorites_enabled = self.addon.getSettingBool('sync_favorites')
             self.sync_userdata_enabled = self.addon.getSettingBool('sync_userdata')
             self.sync_addon_data_enabled = self.addon.getSettingBool('sync_addon_data')
+            self.use_compression = self.addon.getSettingBool('use_compression') if self.addon.getSetting('use_compression') else True
             self.conflict_resolution = self.addon.getSetting('conflict_resolution') or 'newer'
             
         except Exception as e:
@@ -622,7 +624,10 @@ class HybridSyncManager:
             # Check remote version for conflict resolution
             remote_content = None
             if self.dropbox_enabled and self.dropbox:
-                remote_content = self.dropbox.download_file("favourites.xml")
+                if self.use_compression:
+                    remote_content = self.dropbox.download_file_compressed("favourites.xml")
+                else:
+                    remote_content = self.dropbox.download_file("favourites.xml")
 
             should_upload = True
             if remote_content:
@@ -640,7 +645,11 @@ class HybridSyncManager:
 
             # Upload to Dropbox if decision is to upload
             if should_upload and self.dropbox_enabled and self.dropbox:
-                success = self.dropbox.upload_file("favourites.xml", local_content)
+                if self.use_compression:
+                    success = self.dropbox.upload_file_compressed("favourites.xml", local_content)
+                else:
+                    success = self.dropbox.upload_file("favourites.xml", local_content)
+
                 if success:
                     xbmc.log("[CloudSync] Successfully uploaded favourites.xml to Dropbox", xbmc.LOGINFO)
                 else:
@@ -661,7 +670,10 @@ class HybridSyncManager:
             if not (self.dropbox_enabled and self.dropbox):
                 return
 
-            remote_content = self.dropbox.download_file("favourites.xml")
+            if self.use_compression:
+                remote_content = self.dropbox.download_file_compressed("favourites.xml")
+            else:
+                remote_content = self.dropbox.download_file("favourites.xml")
             if not remote_content:
                 xbmc.log("[CloudSync] No remote favourites.xml found", xbmc.LOGINFO)
                 return
@@ -724,12 +736,15 @@ class HybridSyncManager:
         if not self.sync_userdata_enabled:
             return
 
-        # UserData files to sync
+        # UserData files to sync (based on real Userdata structure analysis)
         userdata_files = [
-            'sources.xml',
-            'passwords.xml',
-            'mediasources.xml',
-            'advancedsettings.xml'
+            'sources.xml',          # Media sources and paths
+            'passwords.xml',        # Saved passwords
+            'mediasources.xml',     # Media sources configuration
+            'advancedsettings.xml', # Advanced Kodi settings
+            'profiles.xml',         # User profiles configuration
+            'RssFeeds.xml',         # RSS feeds configuration
+            'upnpserver.xml',       # UPnP server settings
         ]
 
         for filename in userdata_files:
@@ -764,7 +779,10 @@ class HybridSyncManager:
             # Check remote version for conflict resolution
             remote_content = None
             if self.dropbox_enabled and self.dropbox:
-                remote_content = self.dropbox.download_file(f"userdata/{filename}")
+                if self.use_compression:
+                    remote_content = self.dropbox.download_file_compressed(f"userdata/{filename}")
+                else:
+                    remote_content = self.dropbox.download_file(f"userdata/{filename}")
 
             # Conflict resolution logic
             should_upload = True
@@ -804,7 +822,11 @@ class HybridSyncManager:
 
             # Upload to Dropbox if needed
             if should_upload and local_content and self.dropbox_enabled and self.dropbox:
-                success = self.dropbox.upload_file(f"userdata/{filename}", local_content)
+                if self.use_compression:
+                    success = self.dropbox.upload_file_compressed(f"userdata/{filename}", local_content)
+                else:
+                    success = self.dropbox.upload_file(f"userdata/{filename}", local_content)
+
                 if success:
                     xbmc.log(f"[CloudSync] Successfully uploaded {filename} to Dropbox", xbmc.LOGINFO)
                 else:
@@ -840,16 +862,55 @@ class HybridSyncManager:
                 'plugin.video.youtube': ['settings.xml', 'cookies.dat'],
                 'plugin.video.jellyfin': ['settings.xml'],
                 'plugin.video.plex': ['settings.xml'],
+                'plugin.video.themoviedb.helper': ['settings.xml'],
+                'plugin.video.stream-cinema': ['settings.xml'],
+                'plugin.audio.tidal2': ['settings.xml'],
+                'plugin.audio.poslouchej.radia': ['settings.xml'],
 
-                # Skin addons
-                'skin.estuary': ['settings.xml'],
-                'skin.confluence': ['settings.xml'],
-                'skin.aeon.nox.5': ['settings.xml'],
+                # Script addons
+                'script.audio.profiles': ['settings.xml'],
+                'script.embuary.helper': ['settings.xml'],
+                'script.globalsearch': ['settings.xml'],
+                'script.kcleaner': ['settings.xml'],
+                'script.logviewer': ['settings.xml'],
+                'script.skinshortcuts': ['settings.xml'],
+                'script.xbmcbackup': ['settings.xml'],
 
-                # Other important addons
+                # Service addons
                 'service.subtitles.opensubtitles': ['settings.xml'],
+                'service.aml-vnc': ['settings.xml'],
+                'service.coreelec.settings': ['settings.xml'],
+                'service.odroidn2.oled': ['settings.xml'],
+
+                # Weather addons
+                'weather.gismeteo': ['settings.xml'],
                 'weather.openweathermap.extended': ['settings.xml'],
+
+                # Metadata addons
+                'metadata.themoviedb.org.python': ['settings.xml'],
+                'metadata.tvshows.themoviedb.org.python': ['settings.xml'],
+                'metadata.tvshows.thetvdb.com.v4.python': ['settings.xml'],
+                'metadata.album.universal': ['settings.xml'],
+                'metadata.artists.universal': ['settings.xml'],
+
+                # Input/peripheral addons
+                'inputstream.adaptive': ['settings.xml'],
+                'peripheral.joystick': ['settings.xml'],
+
+                # Game addons
+                'game.libretro.pcsx-rearmed': ['settings.xml'],
+
+                # Library tools
+                'plugin.library.node.editor': ['settings.xml'],
+                'script.module.simplecache': ['settings.xml'],
             }
+
+            # Auto-discover all skin addons
+            import os
+            for item in os.listdir(addon_data_path):
+                if item.startswith('skin.') and os.path.isdir(os.path.join(addon_data_path, item)):
+                    important_addons[item] = ['settings.xml']
+                    xbmc.log(f"[CloudSync] Auto-discovered skin addon: {item}", xbmc.LOGINFO)
 
             import os
             for addon_id, config_files in important_addons.items():
@@ -896,7 +957,10 @@ class HybridSyncManager:
             # Check remote version
             remote_content = None
             if self.dropbox_enabled and self.dropbox:
-                remote_content = self.dropbox.download_file(f"addon_data/{addon_id}/{config_file}")
+                if self.use_compression:
+                    remote_content = self.dropbox.download_file_compressed(f"addon_data/{addon_id}/{config_file}")
+                else:
+                    remote_content = self.dropbox.download_file(f"addon_data/{addon_id}/{config_file}")
 
             # Conflict resolution logic
             should_upload = True
@@ -936,7 +1000,11 @@ class HybridSyncManager:
 
             # Upload to Dropbox if needed
             if should_upload and local_content and self.dropbox_enabled and self.dropbox:
-                success = self.dropbox.upload_file(f"addon_data/{addon_id}/{config_file}", local_content)
+                if self.use_compression:
+                    success = self.dropbox.upload_file_compressed(f"addon_data/{addon_id}/{config_file}", local_content)
+                else:
+                    success = self.dropbox.upload_file(f"addon_data/{addon_id}/{config_file}", local_content)
+
                 if success:
                     xbmc.log(f"[CloudSync] Successfully uploaded {addon_id}/{config_file} to Dropbox", xbmc.LOGINFO)
                 else:

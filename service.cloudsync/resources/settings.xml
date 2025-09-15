@@ -25,6 +25,7 @@
   <category label="Sync Behavior">
     <setting id="auto_sync" type="bool" label="Auto Sync on Changes" default="true"/>
     <setting id="sync_interval" type="slider" label="Manual Sync Interval (minutes)" default="5" range="1,1,60"/>
+    <setting id="use_compression" type="bool" label="Use GZIP Compression" default="true"/>
     <setting id="conflict_resolution" type="select" label="Conflict Resolution" default="newer" values="newer|local|remote"/>
     <setting id="perform_full_sync" type="action" label="Perform Full Sync Now" action="RunScript(special://home/addons/service.cloudsync/resources/lib/manual_sync.py)"/>
   </category>

@@ -4,6 +4,8 @@ import urllib.error
 import urllib.parse
 import xbmc
 import xbmcaddon
+import gzip
+import base64
 
 
 class DropboxProviderSimple:
@@ -315,3 +317,126 @@ class DropboxProviderSimple:
         except Exception as e:
             xbmc.log(f"[CloudSync] Error listing files: {e}", xbmc.LOGERROR)
             return []
+
+    def _compress_content(self, content):
+        """Compress content using gzip."""
+        try:
+            if isinstance(content, str):
+                content_bytes = content.encode('utf-8')
+            else:
+                content_bytes = content
+
+            compressed = gzip.compress(content_bytes)
+            xbmc.log(f"[CloudSync] Compressed from {len(content_bytes)} to {len(compressed)} bytes ({100*(1-len(compressed)/len(content_bytes)):.1f}% reduction)", xbmc.LOGINFO)
+            return compressed
+        except Exception as e:
+            xbmc.log(f"[CloudSync] Error compressing content: {e}", xbmc.LOGERROR)
+            return content.encode('utf-8') if isinstance(content, str) else content
+
+    def _decompress_content(self, compressed_content):
+        """Decompress content using gzip."""
+        try:
+            if isinstance(compressed_content, str):
+                compressed_content = compressed_content.encode('utf-8')
+
+            decompressed = gzip.decompress(compressed_content)
+            return decompressed.decode('utf-8')
+        except Exception as e:
+            xbmc.log(f"[CloudSync] Error decompressing content (trying as plain text): {e}", xbmc.LOGDEBUG)
+            # If decompression fails, assume it's plain text
+            try:
+                return compressed_content.decode('utf-8')
+            except:
+                return str(compressed_content)
+
+    def upload_file_compressed(self, filename, content):
+        """Upload file with gzip compression."""
+        try:
+            compressed_content = self._compress_content(content)
+
+            # Use .gz extension to indicate compression
+            compressed_filename = f"{filename}.gz"
+
+            return self._upload_binary_content(compressed_filename, compressed_content)
+        except Exception as e:
+            xbmc.log(f"[CloudSync] Error in compressed upload: {e}", xbmc.LOGERROR)
+            return False
+
+    def download_file_compressed(self, filename):
+        """Download and decompress file."""
+        try:
+            # Try compressed version first
+            compressed_filename = f"{filename}.gz"
+            compressed_content = self._download_binary_content(compressed_filename)
+
+            if compressed_content:
+                return self._decompress_content(compressed_content)
+            else:
+                # Fall back to uncompressed version
+                xbmc.log(f"[CloudSync] Compressed version of {filename} not found, trying uncompressed", xbmc.LOGDEBUG)
+                return self.download_file(filename)
+
+        except Exception as e:
+            xbmc.log(f"[CloudSync] Error in compressed download: {e}", xbmc.LOGERROR)
+            return None
+
+    def _upload_binary_content(self, filename, binary_content):
+        """Upload binary content to Dropbox."""
+        if not self.is_available():
+            return False
+
+        try:
+            headers = {
+                'Authorization': f'Bearer {self.access_token}',
+                'Content-Type': 'application/octet-stream',
+                'Dropbox-API-Arg': json.dumps({
+                    'path': f"{self.sync_folder}/{filename}",
+                    'mode': 'overwrite'
+                })
+            }
+
+            req = urllib.request.Request(
+                f"{self.CONTENT_API_URL}/files/upload",
+                data=binary_content,
+                headers=headers
+            )
+
+            with urllib.request.urlopen(req, timeout=60) as response:
+                response_data = response.read()
+                xbmc.log(f"[CloudSync] Uploaded binary {filename} to Dropbox", xbmc.LOGDEBUG)
+                return True
+
+        except Exception as e:
+            xbmc.log(f"[CloudSync] Failed to upload binary {filename}: {e}", xbmc.LOGERROR)
+            return False
+
+    def _download_binary_content(self, filename):
+        """Download binary content from Dropbox."""
+        if not self.is_available():
+            return None
+
+        try:
+            headers = {
+                'Authorization': f'Bearer {self.access_token}',
+                'Dropbox-API-Arg': json.dumps({
+                    'path': f"{self.sync_folder}/{filename}"
+                })
+            }
+
+            req = urllib.request.Request(
+                f"{self.CONTENT_API_URL}/files/download",
+                headers=headers
+            )
+
+            with urllib.request.urlopen(req, timeout=30) as response:
+                return response.read()
+
+        except urllib.error.HTTPError as e:
+            if e.code == 409:  # File not found
+                return None
+            else:
+                xbmc.log(f"[CloudSync] HTTP error downloading binary {filename}: {e.code}", xbmc.LOGERROR)
+                return None
+        except Exception as e:
+            xbmc.log(f"[CloudSync] Error downloading binary {filename}: {e}", xbmc.LOGERROR)
+            return None
