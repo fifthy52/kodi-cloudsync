@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="repository.cloudsync" name="CloudSync Repository" version="1.0.2" provider-name="CloudSync">
+<addon id="repository.cloudsync" name="CloudSync Repository" version="1.0.3" provider-name="CloudSync">
     <extension point="xbmc.addon.repository" name="CloudSync Repository">
         <dir>
             <info compressed="false">https://raw.githubusercontent.com/fifthy52/kodi-cloudsync/main/repository.cloudsync/addons.xml</info>
             <checksum>https://raw.githubusercontent.com/fifthy52/kodi-cloudsync/main/repository.cloudsync/addons.xml.md5</checksum>
-            <datadir zip="true">https://github.com/fifthy52/kodi-cloudsync/releases/latest/download/</datadir>
+            <datadir zip="true">https://raw.githubusercontent.com/fifthy52/kodi-cloudsync/main/repository.cloudsync/</datadir>
         </dir>
     </extension>
     <extension point="xbmc.addon.metadata">
