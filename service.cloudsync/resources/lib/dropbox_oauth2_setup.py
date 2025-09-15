@@ -10,6 +10,7 @@ import urllib.parse
 import xbmc
 import xbmcaddon
 import xbmcgui
+from qr_generator import SimpleQRGenerator
 
 
 def setup_oauth2():
@@ -53,20 +54,35 @@ def setup_oauth2():
 
         xbmc.log(f"[CloudSync] Opened browser with OAuth URL on {system}", xbmc.LOGINFO)
 
-        dialog.ok("Dropbox OAuth2 Setup",
-                  "Browser should open automatically with Dropbox authorization.\n\n"
+        # Show QR code option
+        qr_choice = dialog.yesno("Dropbox OAuth2 Setup",
+                               "Browser should open automatically.\n\n"
+                               "Would you like to see a QR code for mobile scanning?",
+                               yeslabel="Show QR Code", nolabel="Continue")
+
+        if qr_choice:
+            # Generate and show QR code
+            qr_ascii = SimpleQRGenerator.generate_qr_ascii(auth_url)
+            qr_url = SimpleQRGenerator.generate_qr_url(auth_url)
+
+            qr_text = f"Scan this QR code with your phone:\n\n{qr_ascii}\n\nOr visit: {qr_url}\n\nThen:\n1. Log in to Dropbox\n2. Click 'Allow'\n3. Copy the authorization code"
+            dialog.textviewer("QR Code - Dropbox OAuth2", qr_text)
+
+        dialog.ok("Next Steps",
                   "1. Log in to Dropbox if needed\n"
                   "2. Click 'Allow' to authorize the app\n"
                   "3. Copy the authorization code from the page\n\n"
                   "If browser didn't open, check Kodi log for the URL.")
     except:
-        # Fallback - show URL if automatic opening fails
+        # Fallback - show URL and QR code if automatic opening fails
         xbmc.log(f"[CloudSync] Browser auto-open failed, showing URL: {auth_url}", xbmc.LOGWARNING)
-        dialog.ok("Dropbox OAuth2 Setup",
-                  f"Please open this URL manually:\n\n{auth_url}\n\n"
-                  "1. Log in to Dropbox if needed\n"
-                  "2. Click 'Allow' to authorize\n"
-                  "3. Copy the authorization code")
+
+        # Always show QR code in fallback mode
+        qr_ascii = SimpleQRGenerator.generate_qr_ascii(auth_url)
+        qr_url = SimpleQRGenerator.generate_qr_url(auth_url)
+
+        qr_text = f"Browser didn't open automatically. Use QR code:\n\n{qr_ascii}\n\nOr visit: {qr_url}\n\nManual URL: {auth_url}\n\nThen:\n1. Log in to Dropbox\n2. Click 'Allow'\n3. Copy the authorization code"
+        dialog.textviewer("QR Code - Manual Setup", qr_text)
 
     # Step 4: Get authorization code from user
     auth_code = dialog.input("Enter Authorization Code:", type=xbmcgui.INPUT_ALPHANUM)
