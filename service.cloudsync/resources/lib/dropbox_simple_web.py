@@ -31,29 +31,27 @@ def simple_web_setup():
     server_url = web_server.get_url()
 
     try:
-        # Show URL to user
-        choice = dialog.yesno("Simple Web Setup",
-                             f"✨ Simple web setup started!\n\n"
-                             f"🌐 Open this URL in any browser:\n"
-                             f"{server_url}\n\n"
-                             f"📱 Works from phone, tablet, or any device on network\n"
-                             f"💻 Much easier than typing in Kodi!\n\n"
-                             f"Open browser now?",
-                             yeslabel="Open Browser", nolabel="Show URL Only")
+        # Show URL info and auto-open browser
+        dialog.ok("Simple Web Setup Started",
+                 f"✨ Web server is running!\n\n"
+                 f"🌐 URL: {server_url}\n\n"
+                 f"📱 Access from any device on your network\n"
+                 f"💻 Browser will open automatically\n\n"
+                 f"Complete the 4-step setup in your browser...")
 
-        if choice:
-            # Try to open browser
-            try:
-                import platform
-                system = platform.system().lower()
-                if system == 'windows':
-                    xbmc.executebuiltin(f'System.Exec("start {server_url}")')
-                elif system == 'darwin':
-                    xbmc.executebuiltin(f'System.Exec("open {server_url}")')
-                else:
-                    xbmc.executebuiltin(f'System.Exec("xdg-open {server_url}")')
-            except:
-                pass
+        # Try to open browser automatically
+        try:
+            import platform
+            system = platform.system().lower()
+            if system == 'windows':
+                xbmc.executebuiltin(f'System.Exec("start {server_url}")')
+            elif system == 'darwin':
+                xbmc.executebuiltin(f'System.Exec("open {server_url}")')
+            else:
+                xbmc.executebuiltin(f'System.Exec("xdg-open {server_url}")')
+            xbmc.log(f"[CloudSync] Browser launched for {server_url}", xbmc.LOGINFO)
+        except Exception as e:
+            xbmc.log(f"[CloudSync] Failed to launch browser: {e}", xbmc.LOGWARNING)
 
         # Wait for completion with faster polling
         progress = xbmcgui.DialogProgress()
