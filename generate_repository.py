@@ -36,11 +36,12 @@ def update_repository():
     if os.path.exists(service_dir):
         # Read version from addon.xml
         addon_xml = os.path.join(service_dir, "addon.xml")
-        with open(addon_xml, "r") as f:
+        with open(addon_xml, "r", encoding="utf-8") as f:
             content = f.read()
             # Extract version
             import re
-            version_match = re.search(r'version="([^"]+)"', content)
+            # Find the addon tag with version, not the xml version
+            version_match = re.search(r'<addon[^>]*version="([^"]+)"', content)
             if version_match:
                 version = version_match.group(1)
 
