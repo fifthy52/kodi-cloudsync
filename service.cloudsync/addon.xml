@@ -6,7 +6,7 @@
   <extension point="xbmc.service" library="service_v2.py" start="startup" />
   <extension point="xbmc.addon.metadata">
     <summary>CloudSync - Comprehensive Kodi Sync Solution</summary>
-    <description>Synchronize watched status, resume points, favorites, UserData files, and addon configurations across multiple Kodi devices using Dropbox cloud storage. Features smart conflict resolution and selective sync options.</description>
+    <description>Synchronize watched status, resume points, favorites, and UserData files across multiple Kodi devices using Dropbox cloud storage. Features simple web-based OAuth2 setup, GZIP compression, and automatic updates via repository.</description>
     <platform>all</platform>
   </extension>
 </addon>
