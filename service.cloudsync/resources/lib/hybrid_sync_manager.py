@@ -209,36 +209,50 @@ class HybridSyncManager:
             self.sync_in_progress = True
             xbmc.log("[CloudSync] Starting full sync", xbmc.LOGINFO)
 
+            # Track if any changes were made
+            changes_made = False
+            remote_changes = False
+
             # Download from Dropbox first (get remote changes)
             if self.dropbox_enabled:
-                self._download_and_merge_remote_data()
+                remote_changes = self._download_and_merge_remote_data()
+                if remote_changes:
+                    changes_made = True
 
-            # Sync from Kodi to local database
+            # Sync from Kodi to local database - track changes
             xbmc.log("[CloudSync] Starting sync_watched_status", xbmc.LOGINFO)
-            self.sync_watched_status()
+            if self.sync_watched_status():
+                changes_made = True
 
             xbmc.log("[CloudSync] Starting sync_resume_points", xbmc.LOGINFO)
-            self.sync_resume_points()
+            if self.sync_resume_points():
+                changes_made = True
 
             xbmc.log("[CloudSync] Starting sync_favorites", xbmc.LOGINFO)
-            self.sync_favorites()
+            if self.sync_favorites():
+                changes_made = True
 
             xbmc.log("[CloudSync] Starting sync_userdata", xbmc.LOGINFO)
-            self.sync_userdata()
+            if self.sync_userdata():
+                changes_made = True
 
+            # Only proceed with restore and upload if changes were made
+            if changes_made:
+                # Apply local database back to Kodi
+                xbmc.log("[CloudSync] Starting restore to Kodi", xbmc.LOGINFO)
+                self._restore_to_kodi()
 
-            # Apply local database back to Kodi
-            xbmc.log("[CloudSync] Starting restore to Kodi", xbmc.LOGINFO)
-            self._restore_to_kodi()
+                # Upload updated data to Dropbox
+                xbmc.log("[CloudSync] Starting upload to Dropbox", xbmc.LOGINFO)
+                if self.dropbox_enabled:
+                    self.upload_to_dropbox()
 
-            # Upload updated data to Dropbox
-            xbmc.log("[CloudSync] Starting upload to Dropbox", xbmc.LOGINFO)
-            if self.dropbox_enabled:
-                self.upload_to_dropbox()
+                xbmc.log("[CloudSync] Full sync completed with changes", xbmc.LOGINFO)
+            else:
+                xbmc.log("[CloudSync] Full sync completed - no changes detected", xbmc.LOGINFO)
 
-            xbmc.log("[CloudSync] Full sync completed", xbmc.LOGINFO)
             return True
-                
+
         except Exception as e:
             xbmc.log(f"[CloudSync] Error during full sync: {e}", xbmc.LOGERROR)
             return False
@@ -248,12 +262,13 @@ class HybridSyncManager:
     def sync_watched_status(self):
         """Sync watched status from Kodi to local database."""
         if not self.sync_watched:
-            return
-        
+            return False
+
         try:
             cursor = self.db_connection.cursor()
             current_time = int(time.time())
-            
+            changes_made = False
+
             # Get watched movies from Kodi
             request = {
                 "jsonrpc": "2.0",
@@ -264,40 +279,59 @@ class HybridSyncManager:
                 },
                 "id": 1
             }
-            
+
             response = json.loads(xbmc.executeJSONRPC(json.dumps(request)))
-            
+
             if 'result' in response and 'movies' in response['result']:
                 for movie in response['result']['movies']:
                     imdb_id = movie.get('imdbnumber')
                     if imdb_id:
+                        # Check if this is actually a change
                         cursor.execute("""
-                            INSERT OR REPLACE INTO watched_movies
-                            (imdb_id, title, playcount, lastplayed, lastchange)
-                            VALUES (?, ?, ?, ?, ?)
-                        """, (
-                            imdb_id,
-                            movie.get('title', ''),
-                            movie.get('playcount', 0),
-                            movie.get('lastplayed', ''),
-                            current_time
-                        ))
-            
-            self.db_connection.commit()
-            xbmc.log("[CloudSync] Synchronized watched status to local database", xbmc.LOGDEBUG)
-            
+                            SELECT playcount, lastplayed FROM watched_movies WHERE imdb_id = ?
+                        """, (imdb_id,))
+                        existing = cursor.fetchone()
+
+                        new_playcount = movie.get('playcount', 0)
+                        new_lastplayed = movie.get('lastplayed', '')
+
+                        # Only update if values actually changed
+                        if not existing or existing[0] != new_playcount or existing[1] != new_lastplayed:
+                            cursor.execute("""
+                                INSERT OR REPLACE INTO watched_movies
+                                (imdb_id, title, playcount, lastplayed, lastchange)
+                                VALUES (?, ?, ?, ?, ?)
+                            """, (
+                                imdb_id,
+                                movie.get('title', ''),
+                                new_playcount,
+                                new_lastplayed,
+                                current_time
+                            ))
+                            changes_made = True
+
+            if changes_made:
+                self.db_connection.commit()
+                xbmc.log("[CloudSync] Synchronized watched status to local database", xbmc.LOGDEBUG)
+            else:
+                xbmc.log("[CloudSync] No changes in watched status", xbmc.LOGDEBUG)
+
+            return changes_made
+
         except Exception as e:
             xbmc.log(f"[CloudSync] Failed to sync watched status: {e}", xbmc.LOGERROR)
+            return False
     
     def sync_resume_points(self):
         """Sync resume points from Kodi to local database."""
         if not self.sync_resume:
-            return
-        
+            return False
+
         try:
             cursor = self.db_connection.cursor()
             current_time = int(time.time())
-            
+            changes_made = False
+
             # Get movies with resume points
             request = {
                 "jsonrpc": "2.0",
@@ -308,33 +342,50 @@ class HybridSyncManager:
                 },
                 "id": 1
             }
-            
+
             response = json.loads(xbmc.executeJSONRPC(json.dumps(request)))
-            
+
             if 'result' in response and 'movies' in response['result']:
                 for movie in response['result']['movies']:
                     resume = movie.get('resume', {})
                     position = resume.get('position', 0)
                     total = resume.get('total', 0)
-                    
+
                     if position > 0:
+                        file_path = movie.get('file', '')
+
+                        # Check if this is actually a change
                         cursor.execute("""
-                            INSERT OR REPLACE INTO resume_points
-                            (file_path, position, total_time, lastchange, imdb_id)
-                            VALUES (?, ?, ?, ?, ?)
-                        """, (
-                            movie.get('file', ''),
-                            position,
-                            total,
-                            current_time,
-                            movie.get('imdbnumber', '')
-                        ))
-            
-            self.db_connection.commit()
-            xbmc.log("[CloudSync] Synchronized resume points to local database", xbmc.LOGDEBUG)
-            
+                            SELECT position, total_time FROM resume_points WHERE file_path = ?
+                        """, (file_path,))
+                        existing = cursor.fetchone()
+
+                        # Only update if values actually changed
+                        if not existing or existing[0] != position or existing[1] != total:
+                            cursor.execute("""
+                                INSERT OR REPLACE INTO resume_points
+                                (file_path, position, total_time, lastchange, imdb_id)
+                                VALUES (?, ?, ?, ?, ?)
+                            """, (
+                                file_path,
+                                position,
+                                total,
+                                current_time,
+                                movie.get('imdbnumber', '')
+                            ))
+                            changes_made = True
+
+            if changes_made:
+                self.db_connection.commit()
+                xbmc.log("[CloudSync] Synchronized resume points to local database", xbmc.LOGDEBUG)
+            else:
+                xbmc.log("[CloudSync] No changes in resume points", xbmc.LOGDEBUG)
+
+            return changes_made
+
         except Exception as e:
             xbmc.log(f"[CloudSync] Failed to sync resume points: {e}", xbmc.LOGERROR)
+            return False
     
     def upload_to_dropbox(self):
         """Upload local database to Dropbox."""
@@ -390,38 +441,41 @@ class HybridSyncManager:
         """Download remote database and merge with local data."""
         try:
             xbmc.log("[CloudSync] Downloading and merging remote data", xbmc.LOGDEBUG)
-            
+
             # Download remote database
             remote_content = self.dropbox.download_file("cloudsync.db")
             if not remote_content:
                 xbmc.log("[CloudSync] No remote database found", xbmc.LOGDEBUG)
-                return
-            
+                return False
+
             # Save remote database to temp file
             try:
                 import xbmcvfs
                 temp_path = xbmcvfs.translatePath("special://temp/cloudsync_remote.db")
             except:
                 temp_path = xbmc.translatePath("special://temp/cloudsync_remote.db")
-            
+
             with open(temp_path, 'wb') as f:
                 if isinstance(remote_content, str):
                     f.write(remote_content.encode('utf-8'))
                 else:
                     f.write(remote_content)
-            
+
             # Merge remote data with local database
-            self._merge_remote_database(temp_path)
-            
+            changes_made = self._merge_remote_database(temp_path)
+
             # Cleanup temp file
             try:
                 import os
                 os.remove(temp_path)
             except:
                 pass
-                
+
+            return changes_made
+
         except Exception as e:
             xbmc.log(f"[CloudSync] Error downloading/merging remote data: {e}", xbmc.LOGERROR)
+            return False
     
     def _merge_remote_database(self, remote_db_path):
         """Merge remote database into local database."""
@@ -429,44 +483,46 @@ class HybridSyncManager:
             remote_conn = sqlite3.connect(remote_db_path)
             remote_cursor = remote_conn.cursor()
             local_cursor = self.db_connection.cursor()
-            
+            changes_made = False
+
             # Merge watched movies (prefer newer lastchange timestamps)
             try:
                 remote_cursor.execute("SELECT * FROM watched_movies")
                 for row in remote_cursor.fetchall():
                     imdb_id, title, playcount, lastplayed, remote_lastchange = row
-                    
+
                     # Check if local version exists and compare timestamps
                     local_cursor.execute(
-                        "SELECT lastchange FROM watched_movies WHERE imdb_id = ?", 
+                        "SELECT lastchange FROM watched_movies WHERE imdb_id = ?",
                         (imdb_id,)
                     )
                     local_row = local_cursor.fetchone()
-                    
+
                     # If remote is newer or doesn't exist locally, update
                     if not local_row or local_row[0] < remote_lastchange:
                         local_cursor.execute("""
-                            INSERT OR REPLACE INTO watched_movies 
+                            INSERT OR REPLACE INTO watched_movies
                             (imdb_id, title, playcount, lastplayed, lastchange)
                             VALUES (?, ?, ?, ?, ?)
                         """, (imdb_id, title, playcount, lastplayed, remote_lastchange))
                         xbmc.log(f"[CloudSync] Merged remote movie: {title}", xbmc.LOGDEBUG)
+                        changes_made = True
             except sqlite3.OperationalError:
                 pass  # Table might not exist in remote DB
-            
+
             # Merge resume points (prefer higher position = more progress)
             try:
                 remote_cursor.execute("SELECT * FROM resume_points")
                 for row in remote_cursor.fetchall():
                     file_path, position, total_time, remote_lastchange, imdb_id, tvdb_id, season, episode = row
-                    
+
                     # Check local version
                     local_cursor.execute(
                         "SELECT position, lastchange FROM resume_points WHERE file_path = ?",
                         (file_path,)
                     )
                     local_row = local_cursor.fetchone()
-                    
+
                     # Use remote if: doesn't exist locally, remote is newer, or remote has higher position
                     should_update = False
                     if not local_row:
@@ -475,7 +531,7 @@ class HybridSyncManager:
                         should_update = True
                     elif position > local_row[0]:  # Remote has more progress
                         should_update = True
-                    
+
                     if should_update:
                         local_cursor.execute("""
                             INSERT OR REPLACE INTO resume_points
@@ -483,18 +539,24 @@ class HybridSyncManager:
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                         """, (file_path, position, total_time, remote_lastchange, imdb_id, tvdb_id, season, episode))
                         xbmc.log(f"[CloudSync] Merged remote resume point: {file_path} at {position}s", xbmc.LOGDEBUG)
+                        changes_made = True
             except sqlite3.OperationalError:
                 pass
-            
+
             # Favorites are now synced as XML file, not through database
-            
-            self.db_connection.commit()
+
+            if changes_made:
+                self.db_connection.commit()
+                xbmc.log("[CloudSync] Successfully merged remote database", xbmc.LOGINFO)
+            else:
+                xbmc.log("[CloudSync] No changes from remote database merge", xbmc.LOGDEBUG)
+
             remote_conn.close()
-            
-            xbmc.log("[CloudSync] Successfully merged remote database", xbmc.LOGINFO)
-            
+            return changes_made
+
         except Exception as e:
             xbmc.log(f"[CloudSync] Error merging remote database: {e}", xbmc.LOGERROR)
+            return False
     
     def _restore_to_kodi(self):
         """Restore data from local database back to Kodi."""
@@ -611,7 +673,7 @@ class HybridSyncManager:
     def sync_favorites(self):
         """Sync favorites XML file with conflict resolution."""
         if not self.sync_favorites_enabled:
-            return
+            return False
 
         try:
             # Get path to favorites.xml
@@ -632,13 +694,13 @@ class HybridSyncManager:
 
             if not local_exists:
                 xbmc.log("[CloudSync] No local favourites.xml file found", xbmc.LOGINFO)
-                return
+                return False
 
             # Check if file has changed since last sync
             has_changed, change_reason = self.change_tracker.has_file_changed(favorites_path, "favorites")
             if not has_changed:
                 xbmc.log(f"[CloudSync] Skipping favourites.xml sync - no changes detected ({change_reason})", xbmc.LOGINFO)
-                return
+                return False
 
             # Read local favorites.xml file
             with open(favorites_path, 'r', encoding='utf-8') as f:
@@ -682,13 +744,19 @@ class HybridSyncManager:
                     # Try to refresh favorites display if enabled
                     if self.addon.getSettingBool('favorites_refresh'):
                         self._reload_skin_for_favorites()
+                    return True
                 else:
                     xbmc.log("[CloudSync] Failed to upload favourites.xml to Dropbox", xbmc.LOGERROR)
+                    return False
             elif not should_upload:
                 xbmc.log("[CloudSync] Skipped upload due to conflict resolution", xbmc.LOGINFO)
+                return False
+
+            return True
 
         except Exception as e:
             xbmc.log(f"[CloudSync] Error syncing favorites: {e}", xbmc.LOGERROR)
+            return False
     
     def _restore_favorites(self):
         """Restore favorites XML file from Dropbox."""
@@ -768,7 +836,7 @@ class HybridSyncManager:
     def sync_userdata(self):
         """Sync UserData files (sources.xml, passwords.xml, etc.) with conflict resolution."""
         if not self.sync_userdata_enabled:
-            return
+            return False
 
         # UserData files to sync (based on real Userdata structure analysis)
         userdata_files = [
@@ -781,8 +849,17 @@ class HybridSyncManager:
             'upnpserver.xml',       # UPnP server settings
         ]
 
+        changes_made = False
         for filename in userdata_files:
-            self._sync_userdata_file(filename)
+            if self._sync_userdata_file(filename):
+                changes_made = True
+
+        if changes_made:
+            xbmc.log("[CloudSync] UserData sync completed with changes", xbmc.LOGDEBUG)
+        else:
+            xbmc.log("[CloudSync] No changes in UserData files", xbmc.LOGDEBUG)
+
+        return changes_made
 
     def _sync_userdata_file(self, filename):
         """Sync a single UserData file with conflict resolution."""
@@ -809,7 +886,7 @@ class HybridSyncManager:
                 has_changed, change_reason = self.change_tracker.has_file_changed(file_path, f"userdata/{filename}")
                 if not has_changed:
                     xbmc.log(f"[CloudSync] Skipping {filename} sync - no changes detected ({change_reason})", xbmc.LOGINFO)
-                    return
+                    return False
 
                 # Read local file
                 with open(file_path, 'r', encoding='utf-8') as f:
@@ -858,7 +935,7 @@ class HybridSyncManager:
             else:
                 # Neither exists - nothing to do
                 xbmc.log(f"[CloudSync] {filename} does not exist locally or remotely", xbmc.LOGINFO)
-                return
+                return False
 
             # Upload to Dropbox if needed
             if should_upload and local_content and self.dropbox_enabled and self.dropbox:
@@ -871,8 +948,10 @@ class HybridSyncManager:
                     xbmc.log(f"[CloudSync] Successfully uploaded {filename} to Dropbox", xbmc.LOGINFO)
                     # Mark file as synced
                     self.change_tracker.mark_file_synced(file_path, f"userdata/{filename}")
+                    return True
                 else:
                     xbmc.log(f"[CloudSync] Failed to upload {filename} to Dropbox", xbmc.LOGERROR)
+                    return False
 
             # Download from Dropbox if needed
             if should_download and remote_content:
@@ -881,9 +960,13 @@ class HybridSyncManager:
                 xbmc.log(f"[CloudSync] Successfully downloaded {filename} from Dropbox ({len(remote_content)} chars)", xbmc.LOGINFO)
                 # Mark file as synced after download
                 self.change_tracker.mark_file_synced(file_path, f"userdata/{filename}")
+                return True
+
+            return False
 
         except Exception as e:
             xbmc.log(f"[CloudSync] Error syncing {filename}: {e}", xbmc.LOGERROR)
+            return False
 
     def _reload_skin_for_favorites(self):
         """Attempt to refresh favorites display in skin.
