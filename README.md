@@ -16,35 +16,27 @@ A comprehensive Kodi addon for synchronizing watched status, resume points, favo
 
 ## 🚀 Installation
 
-### Option 1: From GitHub Releases (Recommended)
+### ⭐ Option 1: Repository Install (Recommended - Auto Updates!)
+1. Download [`repository.cloudsync.zip`](https://github.com/fifthy52/kodi-cloudsync/releases/latest/download/repository.cloudsync.zip)
+2. In Kodi: Settings → Add-ons → Install from zip file → Select repository zip
+3. Go to Install from repository → CloudSync Repository → Service add-ons → CloudSync → Install
+4. **Automatic updates** - Future versions will update automatically!
+
+### Option 2: Direct Install
 1. Go to [Releases](https://github.com/fifthy52/kodi-cloudsync/releases)
 2. Download the latest `service.cloudsync-x.x.x.zip`
 3. In Kodi: Settings → Add-ons → Install from zip file
 4. Select the downloaded zip file
-
-### Option 2: From Repository
-1. Download [`repository.cloudsync.zip`](https://github.com/fifthy52/kodi-cloudsync/releases/latest/download/repository.cloudsync.zip)
-2. Install the repository zip in Kodi
-3. Install CloudSync from the repository (automatic updates!)
+5. ⚠️ No automatic updates - must manually update each version
 
 ## ⚙️ Configuration
 
-### Dropbox Setup (Choose one method)
-
-#### 🌟 Simple Web Setup (Recommended)
-1. Go to addon settings
-2. Click "✨ Simple Web Setup (Best)"
-3. Complete setup in your browser (works from phone/tablet!)
-
-#### 📱 Mobile QR Setup
-1. Use "📱 Mobile QR Setup" for QR code authentication
-2. Scan QR code with your mobile device
-
-#### 📝 Manual Setup
-1. Go to [Dropbox App Console](https://www.dropbox.com/developers/apps)
-2. Create new app → Scoped access → App folder
-3. Enable permissions: `files.content.write`, `files.content.read`, `files.metadata.read`
-4. Use "📝 Manual Token Setup" with your credentials
+### 🌟 Simple Web Setup (Only Method)
+1. Go to CloudSync settings in Kodi
+2. Click "✨ Simple Web Setup"
+3. Open the displayed URL in any browser on your network
+4. Complete Dropbox authorization in browser
+5. Addon automatically configures itself - done!
 
 ### Sync Options
 - **Sync Watched Status** - Movie/episode watch status
@@ -65,13 +57,11 @@ CloudSync features a revolutionary web-based setup that eliminates the need to t
 
 ## 🔄 Version History
 
+- **v4.2.0** - Simplified settings UI, automated repository system, documented favorites limitations
 - **v4.1.2** - Fixed dialog overlaps, improved web setup UX
 - **v4.1.0** - Added Simple Web Setup with paste interface
 - **v4.0.0** - Revolutionary web interface for OAuth2 setup
-- **v3.0.0** - Automatic OAuth2 authorization code capture
 - **v2.7.0** - Real scannable QR codes for mobile setup
-- **v2.5.0** - OAuth2 refresh token support for automatic renewal
-- **v2.4.0** - Simplified addon, removed addon_data sync, added favorites auto-refresh
 
 ## 🛠️ Development
 

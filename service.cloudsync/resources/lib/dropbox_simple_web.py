@@ -33,10 +33,10 @@ def simple_web_setup():
     try:
         # Show URL info and auto-open browser
         dialog.ok("Simple Web Setup Started",
-                 f"✨ Web server is running!\n\n"
-                 f"🌐 URL: {server_url}\n\n"
-                 f"📱 Access from any device on your network\n"
-                 f"💻 Browser will open automatically\n\n"
+                 f"Web server is running!\n\n"
+                 f"URL: {server_url}\n\n"
+                 f"Access from any device on your network\n"
+                 f"Browser will open automatically\n\n"
                  f"Complete the 4-step setup in your browser...")
 
         # Try to open browser automatically
@@ -69,15 +69,15 @@ def simple_web_setup():
                 # Check completion status more frequently
                 if web_server.is_complete():
                     xbmc.log("[CloudSync] Web setup detected completion", xbmc.LOGINFO)
-                    progress.update(100, "✅ Setup completed!")
+                    progress.update(100, "Setup completed!")
                     progress.close()  # Close progress immediately
 
                     # Show success dialog
-                    dialog.ok("Success! 🎉",
+                    dialog.ok("Success!",
                              "CloudSync setup completed successfully!\n\n"
-                             "✅ Dropbox is now configured\n"
-                             "🔄 Syncing will start automatically\n"
-                             "🌐 You can close the browser")
+                             "Dropbox is now configured\n"
+                             "Syncing will start automatically\n"
+                             "You can close the browser")
                     return True
 
                 # Update progress every 2 seconds (every 4th check)

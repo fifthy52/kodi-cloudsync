@@ -37,7 +37,7 @@ def setup_web_oauth():
         # Show server info to user
         setup_choice = dialog.yesno("CloudSync Web Setup",
                                    f"Web setup server started!\n\n"
-                                   f"🌐 Open this URL in any browser:\n"
+                                   f"Open this URL in any browser:\n"
                                    f"{server_url}\n\n"
                                    f"You can use this from:\n"
                                    f"• This device: http://localhost:{web_server.port}\n"
@@ -83,7 +83,7 @@ def setup_web_oauth():
                     progress.update(100, "Setup completed successfully!")
                     xbmc.sleep(2000)
                     dialog.ok("Setup Complete!",
-                             "🎉 OAuth2 setup completed successfully!\n\n"
+                             "OAuth2 setup completed successfully!\n\n"
                              "CloudSync is now configured and will start syncing automatically.\n\n"
                              "You can close the browser window.")
                     break
