@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<addons>
+    <addon id="service.cloudsync" name="CloudSync" version="4.1.2" provider-name="CloudSync">
+        <requires>
+            <import addon="xbmc.python" version="3.0.0"/>
+        </requires>
+        <extension point="xbmc.service" library="service_v2.py" start="startup"/>
+        <extension point="xbmc.addon.metadata">
+            <summary>CloudSync - Comprehensive Kodi Sync Solution</summary>
+            <description>Synchronize watched status, resume points, favorites, UserData files, and addon configurations across multiple Kodi devices using Dropbox cloud storage. Features smart conflict resolution, OAuth2 authentication with automatic token refresh, and revolutionary web-based setup interface.</description>
+            <platform>all</platform>
+            <language>en</language>
+            <license>MIT</license>
+            <forum>https://github.com/fifthy52/kodi-cloudsync/discussions</forum>
+            <website>https://github.com/fifthy52/kodi-cloudsync</website>
+            <source>https://github.com/fifthy52/kodi-cloudsync</source>
+            <email></email>
+            <assets>
+                <icon>resources/icon.png</icon>
+                <fanart>resources/fanart.jpg</fanart>
+                <screenshot>resources/screenshot-01.jpg</screenshot>
+                <screenshot>resources/screenshot-02.jpg</screenshot>
+            </assets>
+            <news>
+v4.1.2 - Fixed dialog overlaps, improved web setup UX
+v4.1.0 - Added Simple Web Setup with paste interface
+v4.0.0 - Revolutionary web interface for OAuth2 setup
+v3.0.0 - Automatic OAuth2 authorization code capture
+v2.7.0 - Real scannable QR codes for mobile setup
+            </news>
+        </extension>
+    </addon>
+</addons>

@@ -1,51 +1,79 @@
-# Kodi CloudSync
+# CloudSync for Kodi
 
 A comprehensive Kodi addon for synchronizing watched status, resume points, favorites, and configuration files across multiple devices using Dropbox cloud storage.
 
-## Features
+## ✨ Features
 
-### ✅ Currently Working
+### Currently Working
 - **Watched Status Sync** - Movies and TV episodes playcount and last watched dates
 - **Resume Points Sync** - Continue watching from where you left off
-- **Favorites Sync** - Synchronize favourites.xml across devices with smart conflict resolution
-- **UserData Files Sync** - sources.xml, passwords.xml, mediasources.xml, advancedsettings.xml, profiles.xml, RssFeeds.xml, upnpserver.xml
-- **Complete Addon Data Sync** - Full addon_data directory sync with smart filtering for all configurations
-- **GZIP Compression** - Up to 90% data transfer reduction for all sync operations
-- **Intelligent Change Detection** - SHA256-based file tracking avoids unnecessary sync operations
-- **Dropbox Integration** - Simple token-based authentication
-- **Conflict Resolution** - Choose between "newer", "local", or "remote" strategies
-- **Advanced Conflict Resolution** - Per-file-type resolution strategies with smart heuristics
+- **Favorites Sync** - Synchronize favorites across devices with smart conflict resolution
+- **UserData Files Sync** - sources.xml, passwords.xml, and other configuration files
+- **GZIP Compression** - Up to 90% data transfer reduction
+- **Intelligent Change Detection** - SHA256-based file tracking avoids unnecessary syncs
+- **OAuth2 Integration** - Modern secure Dropbox authentication with automatic token refresh
+- **Web-based Setup** - Easy setup from any device on your network (no more typing long codes!)
 
-### 🚧 In Development
-- **Custom Addon Selection** - User-configurable addon sync lists
-- **Backup and Restore** - Full profile backup/restore functionality
+## 🚀 Installation
 
-## Installation
+### Option 1: From GitHub Releases (Recommended)
+1. Go to [Releases](https://github.com/fifthy52/kodi-cloudsync/releases)
+2. Download the latest `service.cloudsync-x.x.x.zip`
+3. In Kodi: Settings → Add-ons → Install from zip file
+4. Select the downloaded zip file
 
-1. Download the latest `service.cloudsync.zip` from releases
-2. Install via Kodi Add-ons → Install from zip file
-3. Configure Dropbox access token in addon settings
-4. Enable desired sync options
+### Option 2: From Repository
+1. Download [`repository.cloudsync.zip`](https://github.com/fifthy52/kodi-cloudsync/releases/latest/download/repository.cloudsync.zip)
+2. Install the repository zip in Kodi
+3. Install CloudSync from the repository (automatic updates!)
 
-## Configuration
+## ⚙️ Configuration
 
-### Dropbox Setup
+### Dropbox Setup (Choose one method)
+
+#### 🌟 Simple Web Setup (Recommended)
+1. Go to addon settings
+2. Click "✨ Simple Web Setup (Best)"
+3. Complete setup in your browser (works from phone/tablet!)
+
+#### 📱 Mobile QR Setup
+1. Use "📱 Mobile QR Setup" for QR code authentication
+2. Scan QR code with your mobile device
+
+#### 📝 Manual Setup
 1. Go to [Dropbox App Console](https://www.dropbox.com/developers/apps)
 2. Create new app → Scoped access → App folder
 3. Enable permissions: `files.content.write`, `files.content.read`, `files.metadata.read`
-4. Generate access token
-5. Enter token in addon settings
+4. Use "📝 Manual Token Setup" with your credentials
 
 ### Sync Options
 - **Sync Watched Status** - Movie/episode watch status
 - **Sync Resume Points** - Video playback positions
-- **Sync Favorites** - Favorites menu items
-- **Sync UserData Files** - Kodi configuration files (sources, passwords, profiles, etc.)
-- **Sync Addon Data** - Configuration files for addons (auto-discovers all skin.* addons)
-- **Use GZIP Compression** - Reduce data transfer by up to 90%
-- **Conflict Resolution** - How to handle conflicts between devices
+- **Sync Favorites** - Favorites menu items with automatic skin refresh
+- **Sync UserData Files** - Kodi configuration files
+- **Use GZIP Compression** - Reduce data transfer significantly
+- **Conflict Resolution** - Choose how to handle conflicts between devices
 
-## Development
+## 📱 Web Setup Interface
+
+CloudSync features a revolutionary web-based setup that eliminates the need to type long authorization codes in Kodi:
+
+- **Network Accessible** - Use any device on your network
+- **Mobile Friendly** - Perfect for phones and tablets
+- **Step-by-Step Guide** - Clear 4-step process
+- **Automatic Completion** - No manual code entry required
+
+## 🔄 Version History
+
+- **v4.1.2** - Fixed dialog overlaps, improved web setup UX
+- **v4.1.0** - Added Simple Web Setup with paste interface
+- **v4.0.0** - Revolutionary web interface for OAuth2 setup
+- **v3.0.0** - Automatic OAuth2 authorization code capture
+- **v2.7.0** - Real scannable QR codes for mobile setup
+- **v2.5.0** - OAuth2 refresh token support for automatic renewal
+- **v2.4.0** - Simplified addon, removed addon_data sync, added favorites auto-refresh
+
+## 🛠️ Development
 
 ### Project Structure
 ```
@@ -58,23 +86,34 @@ service.cloudsync/
 │   └── lib/                          # Python modules
 │       ├── hybrid_sync_manager.py     # Main sync logic
 │       ├── dropbox_provider_simple.py # Dropbox API wrapper
-│       ├── kodi_utils.py              # Kodi JSON-RPC helpers
+│       ├── simple_web_setup.py        # Web setup server
+│       ├── oauth_server.py            # OAuth2 automation
 │       └── ...
 ```
 
-### Version History
-- **v1.0** - Basic watched status and resume points sync
-- **v1.1** - Added favorites sync with XML file approach
-- **v1.2** - Smart conflict resolution for favorites
-- **v2.0** - UserData and addon_data sync implementation
-- **v2.1** - GZIP compression, auto skin discovery, expanded addon coverage
-- **v2.2** - Intelligent file change detection, ~90% performance improvement
-- **v2.3** - Complete addon_data directory sync, eliminates partial transfer issues
+### Building from Source
+```bash
+git clone https://github.com/fifthy52/kodi-cloudsync.git
+cd kodi-cloudsync
+zip -r service.cloudsync-dev.zip service.cloudsync/
+```
 
-## Credits
+## 🤝 Contributing
 
-Inspired by the excellent `service.watchedsync` addon and built using patterns from professional Kodi addon development.
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test with Kodi
+5. Submit a pull request
 
-## License
+## 📄 License
 
 MIT License - See LICENSE file for details
+
+## 🙏 Credits
+
+Inspired by professional Kodi addon development practices and built with modern OAuth2 security standards.
+
+---
+
+**Need help?** Open an [issue](https://github.com/fifthy52/kodi-cloudsync/issues) or check the [wiki](https://github.com/fifthy52/kodi-cloudsync/wiki) for troubleshooting guides.
