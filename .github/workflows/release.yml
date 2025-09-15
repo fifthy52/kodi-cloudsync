@@ -4,9 +4,7 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'service.cloudsync/addon.xml'
-      - 'addons.xml'
+  workflow_dispatch:
 
 jobs:
   update_repository:
@@ -32,7 +30,17 @@ jobs:
         echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
         echo "Found version: $VERSION"
 
+        # Check if ZIP already exists
+        if [ -f "service.cloudsync-${VERSION}.zip" ]; then
+          echo "ZIP file already exists for version $VERSION"
+          echo "SKIP_BUILD=true" >> $GITHUB_OUTPUT
+        else
+          echo "Need to build ZIP for version $VERSION"
+          echo "SKIP_BUILD=false" >> $GITHUB_OUTPUT
+        fi
+
     - name: Create addon ZIP and MD5
+      if: steps.get_version.outputs.SKIP_BUILD == 'false'
       run: |
         cd service.cloudsync
         zip -r ../service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip . -x "*.pyc" "*/__pycache__/*"
