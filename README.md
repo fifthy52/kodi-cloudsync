@@ -8,11 +8,12 @@ A comprehensive Kodi addon for synchronizing watched status, resume points, favo
 - **Watched Status Sync** - Movies and TV episodes playcount and last watched dates
 - **Resume Points Sync** - Continue watching from where you left off
 - **Favorites Sync** - Synchronize favourites.xml across devices with smart conflict resolution
-- **UserData Files Sync** - sources.xml, passwords.xml, mediasources.xml, advancedsettings.xml
-- **Addon Data Sync** - Selective sync of addon configuration files for popular addons
+- **UserData Files Sync** - sources.xml, passwords.xml, mediasources.xml, advancedsettings.xml, profiles.xml, RssFeeds.xml, upnpserver.xml
+- **Addon Data Sync** - Automatic sync of addon configuration files with auto-discovery of all skin.* addons
+- **GZIP Compression** - Up to 90% data transfer reduction for all sync operations
 - **Dropbox Integration** - Simple token-based authentication
 - **Conflict Resolution** - Choose between "newer", "local", or "remote" strategies
-- **Advanced Conflict Resolution** - Per-file-type resolution strategies
+- **Advanced Conflict Resolution** - Per-file-type resolution strategies with smart heuristics
 
 ### 🚧 In Development
 - **Custom Addon Selection** - User-configurable addon sync lists
@@ -38,8 +39,9 @@ A comprehensive Kodi addon for synchronizing watched status, resume points, favo
 - **Sync Watched Status** - Movie/episode watch status
 - **Sync Resume Points** - Video playback positions
 - **Sync Favorites** - Favorites menu items
-- **Sync UserData Files** - Kodi configuration files (sources, passwords, etc.)
-- **Sync Addon Data** - Configuration files for popular addons
+- **Sync UserData Files** - Kodi configuration files (sources, passwords, profiles, etc.)
+- **Sync Addon Data** - Configuration files for addons (auto-discovers all skin.* addons)
+- **Use GZIP Compression** - Reduce data transfer by up to 90%
 - **Conflict Resolution** - How to handle conflicts between devices
 
 ## Development
@@ -64,6 +66,7 @@ service.cloudsync/
 - **v1.1** - Added favorites sync with XML file approach
 - **v1.2** - Smart conflict resolution for favorites
 - **v2.0** - UserData and addon_data sync implementation
+- **v2.1** - GZIP compression, auto skin discovery, expanded addon coverage
 
 ## Credits
 
