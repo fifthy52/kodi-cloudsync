@@ -34,25 +34,31 @@ def setup_oauth2():
     # Step 1: Show setup instructions
     dialog = xbmcgui.Dialog()
 
-    dialog.ok("Dropbox OAuth2 Setup - Step 1",
-              "Before starting, setup redirect URIs:\n\n"
-              "1. Go to Dropbox App Console\n"
-              "2. In OAuth2 Redirect URIs, add ALL of these:\n"
-              "   http://localhost:8765\n"
-              "   http://localhost:8766\n"
-              "   http://localhost:8767\n"
-              "   http://localhost:8080\n"
-              "   http://localhost:8081\n\n"
-              "This enables automatic code capture!")
+    # Show setup instructions with continue/cancel option
+    setup_choice = dialog.yesno("Dropbox OAuth2 Setup",
+                               "This will setup automatic OAuth2 authentication.\n\n"
+                               "FIRST: Go to Dropbox App Console and add these redirect URIs:\n"
+                               "• http://localhost:8765\n"
+                               "• http://localhost:8766\n"
+                               "• http://localhost:8080\n"
+                               "• http://localhost:8081\n\n"
+                               "Continue with setup?",
+                               yeslabel="Continue", nolabel="Cancel")
+
+    if not setup_choice:
+        dialog.ok("Setup Cancelled", "OAuth2 setup was cancelled.\nYou can try again anytime.")
+        return True  # Return True to avoid restart loop
 
     # Get App Key and Secret from user
     app_key = dialog.input("Enter Dropbox App Key:", type=xbmcgui.INPUT_ALPHANUM)
     if not app_key:
-        return False
+        dialog.ok("Setup Cancelled", "Setup cancelled - no App Key provided.")
+        return True  # Return True to avoid restart loop
 
     app_secret = dialog.input("Enter Dropbox App Secret:", type=xbmcgui.INPUT_ALPHANUM)
     if not app_secret:
-        return False
+        dialog.ok("Setup Cancelled", "Setup cancelled - no App Secret provided.")
+        return True  # Return True to avoid restart loop
 
     # Step 2: Setup OAuth server for automatic code capture
     oauth_server = None
@@ -223,7 +229,8 @@ def setup_oauth2():
         # Manual entry fallback
         auth_code = dialog.input("Enter Authorization Code:", type=xbmcgui.INPUT_ALPHANUM)
         if not auth_code:
-            return False
+            dialog.ok("Setup Cancelled", "Setup cancelled - no authorization code provided.")
+            return True  # Return True to avoid restart loop
 
     # Step 5: Exchange code for tokens
     try:
