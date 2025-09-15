@@ -103,20 +103,10 @@ jobs:
     - name: Create GitHub Release
       if: steps.get_version.outputs.SKIP_BUILD == 'false'
       run: |
-        # Create release with simple changelog
         gh release create "v${{ steps.get_version.outputs.VERSION }}" \
           service.cloudsync/service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip \
           --title "CloudSync v${{ steps.get_version.outputs.VERSION }}" \
-          --notes "## CloudSync v${{ steps.get_version.outputs.VERSION }}
-
-New version with latest improvements and fixes.
-
-## Installation
-Download the ZIP file and install manually in Kodi, or install via [CloudSync Repository](https://github.com/fifthy52/kodi-cloudsync).
-
-## Repository Installation
-1. Download [repository.cloudsync.zip](https://github.com/fifthy52/kodi-cloudsync/raw/main/repository.cloudsync.zip)
-2. Install in Kodi: Settings → Add-ons → Install from zip file"
+          --notes "CloudSync v${{ steps.get_version.outputs.VERSION }} - New version with latest improvements and fixes."
       env:
         GH_TOKEN: ${{ github.token }}
 
