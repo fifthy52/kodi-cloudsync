@@ -33,11 +33,40 @@ def setup_oauth2():
                 f"response_type=code&"
                 f"token_access_type=offline")
 
-    # Step 3: Display authorization URL to user
-    dialog.ok("Dropbox Setup",
-              f"1. Open this URL in browser:\n{auth_url}\n\n"
-              "2. Click 'Allow' and copy the authorization code\n"
-              "3. Click OK to continue")
+    # Step 3: Open browser automatically and show instructions
+    try:
+        # Try to open browser automatically - multi-platform support
+        import sys
+        import platform
+
+        # Log URL first for fallback
+        xbmc.log(f"[CloudSync] OAuth2 URL: {auth_url}", xbmc.LOGNOTICE)
+
+        # Platform-specific browser opening
+        system = platform.system().lower()
+        if system == 'windows':
+            xbmc.executebuiltin(f'System.Exec("start {auth_url}")')
+        elif system == 'darwin':  # macOS
+            xbmc.executebuiltin(f'System.Exec("open {auth_url}")')
+        else:  # Linux, Android
+            xbmc.executebuiltin(f'System.Exec("xdg-open {auth_url}")')
+
+        xbmc.log(f"[CloudSync] Opened browser with OAuth URL on {system}", xbmc.LOGINFO)
+
+        dialog.ok("Dropbox OAuth2 Setup",
+                  "Browser should open automatically with Dropbox authorization.\n\n"
+                  "1. Log in to Dropbox if needed\n"
+                  "2. Click 'Allow' to authorize the app\n"
+                  "3. Copy the authorization code from the page\n\n"
+                  "If browser didn't open, check Kodi log for the URL.")
+    except:
+        # Fallback - show URL if automatic opening fails
+        xbmc.log(f"[CloudSync] Browser auto-open failed, showing URL: {auth_url}", xbmc.LOGWARNING)
+        dialog.ok("Dropbox OAuth2 Setup",
+                  f"Please open this URL manually:\n\n{auth_url}\n\n"
+                  "1. Log in to Dropbox if needed\n"
+                  "2. Click 'Allow' to authorize\n"
+                  "3. Copy the authorization code")
 
     # Step 4: Get authorization code from user
     auth_code = dialog.input("Enter Authorization Code:", type=xbmcgui.INPUT_ALPHANUM)
