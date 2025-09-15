@@ -18,7 +18,6 @@
     <setting id="sync_favorites" type="bool" label="Sync Favorites" default="true"/>
     <setting id="sync_sources" type="bool" label="Sync Sources" default="false"/>
     <setting id="sync_userdata" type="bool" label="Sync UserData Files" default="false"/>
-    <setting id="sync_addon_data" type="bool" label="Sync Complete Addon Data Directory" default="false"/>
     <setting id="sync_playlists" type="bool" label="Sync Playlists" default="false"/>
   </category>
 

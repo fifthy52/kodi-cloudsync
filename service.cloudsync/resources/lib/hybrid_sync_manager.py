@@ -34,7 +34,6 @@ class HybridSyncManager:
         self.sync_resume = True
         self.sync_favorites_enabled = True
         self.sync_userdata_enabled = False
-        self.sync_addon_data_enabled = False
         self.use_compression = True
         self.conflict_resolution = 'newer'
     
@@ -211,8 +210,6 @@ class HybridSyncManager:
             xbmc.log("[CloudSync] Starting sync_userdata", xbmc.LOGINFO)
             self.sync_userdata()
 
-            xbmc.log("[CloudSync] Starting sync_addon_data", xbmc.LOGINFO)
-            self.sync_addon_data()
 
             # Apply local database back to Kodi
             xbmc.log("[CloudSync] Starting restore to Kodi", xbmc.LOGINFO)
@@ -358,7 +355,6 @@ class HybridSyncManager:
             self.sync_resume = self.addon.getSettingBool('sync_resume_points')
             self.sync_favorites_enabled = self.addon.getSettingBool('sync_favorites')
             self.sync_userdata_enabled = self.addon.getSettingBool('sync_userdata')
-            self.sync_addon_data_enabled = self.addon.getSettingBool('sync_addon_data')
             self.use_compression = self.addon.getSettingBool('use_compression') if self.addon.getSetting('use_compression') else True
             self.conflict_resolution = self.addon.getSetting('conflict_resolution') or 'newer'
             
@@ -667,6 +663,8 @@ class HybridSyncManager:
                     xbmc.log("[CloudSync] Successfully uploaded favourites.xml to Dropbox", xbmc.LOGINFO)
                     # Mark file as synced
                     self.change_tracker.mark_file_synced(favorites_path, "favorites")
+                    # Reload skin to refresh favorites menu immediately
+                    self._reload_skin_for_favorites()
                 else:
                     xbmc.log("[CloudSync] Failed to upload favourites.xml to Dropbox", xbmc.LOGERROR)
             elif not should_upload:
@@ -742,6 +740,9 @@ class HybridSyncManager:
                 f.write(remote_content)
 
             xbmc.log(f"[CloudSync] Successfully restored favourites.xml ({len(remote_content)} chars)", xbmc.LOGINFO)
+
+            # Reload skin to refresh favorites menu immediately
+            self._reload_skin_for_favorites()
 
         except Exception as e:
             xbmc.log(f"[CloudSync] Error restoring favorites: {e}", xbmc.LOGERROR)
@@ -866,206 +867,17 @@ class HybridSyncManager:
         except Exception as e:
             xbmc.log(f"[CloudSync] Error syncing {filename}: {e}", xbmc.LOGERROR)
 
-    def sync_addon_data(self):
-        """Sync complete addon_data directory with all addon configurations."""
-        if not self.sync_addon_data_enabled:
-            return
-
+    def _reload_skin_for_favorites(self):
+        """Reload skin to refresh favorites menu without restarting Kodi."""
         try:
-            import os
-
-            # Get addon_data path
-            try:
-                import xbmcvfs
-                addon_data_path = xbmcvfs.translatePath("special://profile/addon_data/")
-            except:
-                addon_data_path = xbmc.translatePath("special://profile/addon_data/")
-
-            if not os.path.exists(addon_data_path):
-                xbmc.log("[CloudSync] addon_data directory not found", xbmc.LOGWARNING)
-                return
-
-            xbmc.log("[CloudSync] Starting full addon_data directory sync", xbmc.LOGINFO)
-
-            # Sync entire addon_data directory recursively
-            self._sync_directory_recursive(addon_data_path, "addon_data", exclude_patterns=[
-                '*.tmp', '*.temp', '*.log', '*.cache', '__pycache__',
-                'Thumbnails', 'temp', '.DS_Store', 'Thumbs.db'
-            ])
-
-            xbmc.log("[CloudSync] Completed full addon_data directory sync", xbmc.LOGINFO)
-
+            xbmc.log("[CloudSync] Reloading skin to refresh favorites menu", xbmc.LOGINFO)
+            # Use ReloadSkin builtin function to refresh the skin immediately
+            xbmc.executebuiltin("ReloadSkin()")
+            xbmc.log("[CloudSync] Skin reloaded successfully", xbmc.LOGINFO)
         except Exception as e:
-            xbmc.log(f"[CloudSync] Error in addon_data sync: {e}", xbmc.LOGERROR)
+            xbmc.log(f"[CloudSync] Error reloading skin: {e}", xbmc.LOGERROR)
 
 
-    def _sync_directory_recursive(self, local_dir_path, remote_dir_prefix, exclude_patterns=None):
-        """Recursively sync entire directory with smart filtering."""
-        if exclude_patterns is None:
-            exclude_patterns = []
 
-        try:
-            import os
-            import fnmatch
 
-            sync_count = 0
-            skip_count = 0
-            total_size = 0
 
-            xbmc.log(f"[CloudSync] Scanning directory: {local_dir_path}", xbmc.LOGINFO)
-
-            for root, dirs, files in os.walk(local_dir_path):
-                # Filter out excluded directories
-                dirs[:] = [d for d in dirs if not any(fnmatch.fnmatch(d, pattern) for pattern in exclude_patterns)]
-
-                for file in files:
-                    # Skip excluded file patterns
-                    if any(fnmatch.fnmatch(file, pattern) for pattern in exclude_patterns):
-                        skip_count += 1
-                        continue
-
-                    file_path = os.path.join(root, file)
-
-                    # Skip non-text files that are likely not configuration
-                    if not self._is_sync_worthy_file(file_path):
-                        skip_count += 1
-                        continue
-
-                    # Create relative path for remote storage
-                    rel_path = os.path.relpath(file_path, local_dir_path)
-                    remote_path = f"{remote_dir_prefix}/{rel_path.replace(os.sep, '/')}"
-
-                    # Check if file has changed since last sync
-                    has_changed, change_reason = self.change_tracker.has_file_changed(file_path, f"full_addon_data/{remote_path}")
-                    if not has_changed:
-                        skip_count += 1
-                        continue
-
-                    # Sync the file
-                    success = self._sync_single_file(file_path, remote_path, f"full_addon_data/{remote_path}")
-                    if success:
-                        sync_count += 1
-                        try:
-                            total_size += os.path.getsize(file_path)
-                        except:
-                            pass
-
-            xbmc.log(f"[CloudSync] Directory sync complete: {sync_count} files synced, {skip_count} skipped, ~{total_size//1024}KB processed", xbmc.LOGINFO)
-
-        except Exception as e:
-            xbmc.log(f"[CloudSync] Error in directory recursive sync: {e}", xbmc.LOGERROR)
-
-    def _is_sync_worthy_file(self, file_path):
-        """Determine if file is worth syncing (configuration, not cache/temp)."""
-        import os
-
-        file_name = os.path.basename(file_path).lower()
-        file_ext = os.path.splitext(file_name)[1].lower()
-
-        # Sync worthy extensions
-        sync_extensions = {
-            '.xml', '.json', '.txt', '.cfg', '.conf', '.ini', '.properties',
-            '.dat', '.db', '.sqlite', '.sql', '.csv', '.yaml', '.yml'
-        }
-
-        # Always sync these extensions
-        if file_ext in sync_extensions:
-            return True
-
-        # Skip binary/media files
-        skip_extensions = {
-            '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.ico', '.tiff',
-            '.mp4', '.avi', '.mkv', '.mp3', '.wav', '.flac',
-            '.zip', '.rar', '.7z', '.tar', '.gz',
-            '.exe', '.dll', '.so', '.dylib'
-        }
-
-        if file_ext in skip_extensions:
-            return False
-
-        # Skip cache/temp files by name
-        skip_names = {'cache', 'temp', 'tmp', 'log', 'debug'}
-        if any(skip_name in file_name for skip_name in skip_names):
-            return False
-
-        # Files without extension - check if they look like config
-        if not file_ext:
-            # Small files without extension might be config
-            try:
-                file_size = os.path.getsize(file_path)
-                if file_size < 1024 * 1024:  # Less than 1MB
-                    return True
-            except:
-                pass
-
-        # Default to syncing if unsure
-        return True
-
-    def _sync_single_file(self, file_path, remote_path, tracking_key):
-        """Sync a single file with conflict resolution."""
-        try:
-            # Read local file
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                local_content = f.read()
-
-            # Check remote version for conflict resolution
-            remote_content = None
-            if self.dropbox_enabled and self.dropbox:
-                if self.use_compression:
-                    remote_content = self.dropbox.download_file_compressed(remote_path)
-                else:
-                    remote_content = self.dropbox.download_file(remote_path)
-
-            # Apply conflict resolution (prefer local for addon configs)
-            should_upload = True
-            should_download = False
-
-            if local_content and remote_content:
-                if self.conflict_resolution == "local":
-                    should_upload = True
-                elif self.conflict_resolution == "remote":
-                    should_upload = False
-                    should_download = True
-                elif self.conflict_resolution == "newer":
-                    # For addon configs, prefer local unless remote is significantly larger
-                    local_size = len(local_content)
-                    remote_size = len(remote_content)
-                    if remote_size > local_size * 1.3:  # 30% larger threshold
-                        should_upload = False
-                        should_download = True
-
-            # Upload to Dropbox if needed
-            if should_upload and self.dropbox_enabled and self.dropbox:
-                if self.use_compression:
-                    success = self.dropbox.upload_file_compressed(remote_path, local_content)
-                else:
-                    success = self.dropbox.upload_file(remote_path, local_content)
-
-                if success:
-                    # Mark file as synced
-                    self.change_tracker.mark_file_synced(file_path, tracking_key)
-                    xbmc.log(f"[CloudSync] Uploaded: {remote_path} ({len(local_content)} chars)", xbmc.LOGDEBUG)
-                    return True
-                else:
-                    xbmc.log(f"[CloudSync] Failed to upload: {remote_path}", xbmc.LOGERROR)
-                    return False
-
-            # Download from Dropbox if needed
-            if should_download and remote_content:
-                # Create directory if it doesn't exist
-                import os
-                os.makedirs(os.path.dirname(file_path), exist_ok=True)
-
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    f.write(remote_content)
-
-                # Mark file as synced after download
-                self.change_tracker.mark_file_synced(file_path, tracking_key)
-                xbmc.log(f"[CloudSync] Downloaded: {remote_path} ({len(remote_content)} chars)", xbmc.LOGDEBUG)
-                return True
-
-            return False
-
-        except Exception as e:
-            xbmc.log(f"[CloudSync] Error syncing file {file_path}: {e}", xbmc.LOGERROR)
-            return False
