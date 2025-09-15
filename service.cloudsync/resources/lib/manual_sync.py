@@ -61,7 +61,8 @@ def perform_manual_sync():
         except Exception as e:
             progress.close()
             xbmc.log(f"[CloudSync] Error in manual sync: {e}", xbmc.LOGERROR)
-            xbmc.executebuiltin(f'Notification(CloudSync,Manual sync error: {str(e)},5000)')
+            error_msg = str(e).replace(',', ' - ')  # Replace commas to avoid notification parsing issues
+            xbmc.executebuiltin(f'Notification(CloudSync,Manual sync error: {error_msg},5000)')
         
     except Exception as e:
         xbmc.log(f"[CloudSync] Error in manual sync: {e}", xbmc.LOGERROR)
@@ -69,7 +70,8 @@ def perform_manual_sync():
             progress.close()
         except:
             pass
-        xbmcgui.Dialog().ok("CloudSync Error", f"Manual sync failed: {str(e)}")
+        error_msg = str(e)
+        xbmcgui.Dialog().ok("CloudSync Error", f"Manual sync failed: {error_msg}")
 
 
 if __name__ == "__main__":

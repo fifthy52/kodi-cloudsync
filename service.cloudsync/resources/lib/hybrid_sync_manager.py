@@ -98,9 +98,25 @@ class HybridSyncManager:
             
             self.local_db_path = data_dir + "cloudsync.db"
             
-            # Connect and create tables
-            self.db_connection = sqlite3.connect(self.local_db_path, check_same_thread=False)
-            cursor = self.db_connection.cursor()
+            # Connect and create tables - handle corrupted database
+            try:
+                self.db_connection = sqlite3.connect(self.local_db_path, check_same_thread=False)
+                cursor = self.db_connection.cursor()
+                # Test database integrity
+                result = cursor.execute("PRAGMA integrity_check").fetchone()
+                if result and result[0] != 'ok':
+                    raise sqlite3.DatabaseError("Database integrity check failed")
+            except (sqlite3.DatabaseError, sqlite3.OperationalError) as e:
+                xbmc.log(f"[CloudSync] Database corrupted ({e}), recreating", xbmc.LOGWARNING)
+                # Remove corrupted database and create new one
+                try:
+                    import os
+                    if os.path.exists(self.local_db_path):
+                        os.remove(self.local_db_path)
+                except:
+                    pass
+                self.db_connection = sqlite3.connect(self.local_db_path, check_same_thread=False)
+                cursor = self.db_connection.cursor()
             
             # Create tables
             cursor.execute("""
