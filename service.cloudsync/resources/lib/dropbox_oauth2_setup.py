@@ -11,7 +11,7 @@ import xbmc
 import xbmcaddon
 import xbmcgui
 
-# Import QR generator with error handling
+# Import QR generator and OAuth server with error handling
 try:
     from qr_generator import SimpleQRGenerator
     QR_AVAILABLE = True
@@ -19,14 +19,31 @@ except ImportError:
     QR_AVAILABLE = False
     xbmc.log("[CloudSync] QR generator not available", xbmc.LOGWARNING)
 
+try:
+    from oauth_server import OAuthServer
+    OAUTH_SERVER_AVAILABLE = True
+except ImportError:
+    OAUTH_SERVER_AVAILABLE = False
+    xbmc.log("[CloudSync] OAuth server not available", xbmc.LOGWARNING)
+
 
 def setup_oauth2():
     """Setup Dropbox OAuth2 with refresh token."""
     addon = xbmcaddon.Addon('service.cloudsync')
 
-    # Step 1: Get App Key and Secret from user
+    # Step 1: Show setup instructions
     dialog = xbmcgui.Dialog()
 
+    dialog.ok("Dropbox OAuth2 Setup",
+              "Before starting:\n\n"
+              "1. Go to Dropbox App Console\n"
+              "2. In OAuth2 Redirect URIs, add:\n"
+              "   http://localhost:8080\n"
+              "   http://localhost:8081\n"
+              "   http://localhost:8082\n\n"
+              "This enables automatic code capture!")
+
+    # Get App Key and Secret from user
     app_key = dialog.input("Enter Dropbox App Key:", type=xbmcgui.INPUT_ALPHANUM)
     if not app_key:
         return False
@@ -35,11 +52,36 @@ def setup_oauth2():
     if not app_secret:
         return False
 
-    # Step 2: Generate authorization URL
-    auth_url = (f"https://www.dropbox.com/oauth2/authorize?"
-                f"client_id={app_key}&"
-                f"response_type=code&"
-                f"token_access_type=offline")
+    # Step 2: Setup OAuth server for automatic code capture
+    oauth_server = None
+    redirect_uri = None
+
+    if OAUTH_SERVER_AVAILABLE:
+        try:
+            oauth_server = OAuthServer()
+            if oauth_server.start_server():
+                redirect_uri = oauth_server.get_redirect_uri()
+                xbmc.log(f"[CloudSync] OAuth server running on {redirect_uri}", xbmc.LOGINFO)
+            else:
+                oauth_server = None
+        except Exception as e:
+            xbmc.log(f"[CloudSync] OAuth server failed: {e}", xbmc.LOGWARNING)
+            oauth_server = None
+
+    # Step 3: Generate authorization URL with redirect_uri
+    if redirect_uri:
+        auth_url = (f"https://www.dropbox.com/oauth2/authorize?"
+                    f"client_id={app_key}&"
+                    f"response_type=code&"
+                    f"token_access_type=offline&"
+                    f"redirect_uri={redirect_uri}")
+        xbmc.log("[CloudSync] Using automatic code capture", xbmc.LOGINFO)
+    else:
+        auth_url = (f"https://www.dropbox.com/oauth2/authorize?"
+                    f"client_id={app_key}&"
+                    f"response_type=code&"
+                    f"token_access_type=offline")
+        xbmc.log("[CloudSync] Using manual code entry", xbmc.LOGINFO)
 
     # Step 3: Open browser automatically and show instructions
     try:
@@ -126,10 +168,51 @@ def setup_oauth2():
         else:
             dialog.ok("Manual Setup", f"Please open this URL manually:\n\n{auth_url}\n\n1. Log in to Dropbox\n2. Click 'Allow'\n3. Copy authorization code")
 
-    # Step 4: Get authorization code from user
-    auth_code = dialog.input("Enter Authorization Code:", type=xbmcgui.INPUT_ALPHANUM)
+    # Step 4: Get authorization code - automatic or manual
+    auth_code = None
+
+    if oauth_server:
+        # Automatic code capture
+        progress = xbmcgui.DialogProgress()
+        progress.create("CloudSync OAuth2", "Waiting for authorization...")
+        progress.update(0, "Please authorize in your browser...")
+
+        try:
+            # Wait for code with progress dialog
+            for i in range(60):  # 60 seconds timeout
+                if progress.iscanceled():
+                    break
+
+                auth_code = oauth_server.wait_for_code(1)  # Check every second
+                if auth_code:
+                    progress.update(100, "Authorization successful!")
+                    xbmc.sleep(1000)
+                    break
+
+                if oauth_server.authorization_error:
+                    progress.close()
+                    dialog.ok("OAuth Error", f"Authorization failed: {oauth_server.authorization_error}")
+                    return False
+
+                progress.update(int((i + 1) * 100 / 60), f"Waiting... {60 - i}s remaining")
+                xbmc.sleep(1000)
+
+            progress.close()
+
+            if not auth_code:
+                # Timeout - fallback to manual entry
+                dialog.ok("Timeout", "Automatic authorization timed out.\nFalling back to manual entry.")
+                oauth_server.stop_server()
+                oauth_server = None
+        finally:
+            if oauth_server:
+                oauth_server.stop_server()
+
     if not auth_code:
-        return False
+        # Manual entry fallback
+        auth_code = dialog.input("Enter Authorization Code:", type=xbmcgui.INPUT_ALPHANUM)
+        if not auth_code:
+            return False
 
     # Step 5: Exchange code for tokens
     try:
