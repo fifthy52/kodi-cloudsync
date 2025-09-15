@@ -8,13 +8,15 @@ A comprehensive Kodi addon for synchronizing watched status, resume points, favo
 - **Watched Status Sync** - Movies and TV episodes playcount and last watched dates
 - **Resume Points Sync** - Continue watching from where you left off
 - **Favorites Sync** - Synchronize favourites.xml across devices with smart conflict resolution
+- **UserData Files Sync** - sources.xml, passwords.xml, mediasources.xml, advancedsettings.xml
+- **Addon Data Sync** - Selective sync of addon configuration files for popular addons
 - **Dropbox Integration** - Simple token-based authentication
 - **Conflict Resolution** - Choose between "newer", "local", or "remote" strategies
+- **Advanced Conflict Resolution** - Per-file-type resolution strategies
 
 ### 🚧 In Development
-- **UserData Files Sync** - sources.xml, passwords.xml, mediasources.xml, advancedsettings.xml
-- **Addon Data Sync** - Selective sync of addon configuration files
-- **Advanced Conflict Resolution** - Per-file-type resolution strategies
+- **Custom Addon Selection** - User-configurable addon sync lists
+- **Backup and Restore** - Full profile backup/restore functionality
 
 ## Installation
 
@@ -36,6 +38,8 @@ A comprehensive Kodi addon for synchronizing watched status, resume points, favo
 - **Sync Watched Status** - Movie/episode watch status
 - **Sync Resume Points** - Video playback positions
 - **Sync Favorites** - Favorites menu items
+- **Sync UserData Files** - Kodi configuration files (sources, passwords, etc.)
+- **Sync Addon Data** - Configuration files for popular addons
 - **Conflict Resolution** - How to handle conflicts between devices
 
 ## Development
@@ -59,7 +63,7 @@ service.cloudsync/
 - **v1.0** - Basic watched status and resume points sync
 - **v1.1** - Added favorites sync with XML file approach
 - **v1.2** - Smart conflict resolution for favorites
-- **v2.0** - (Planned) UserData and addon_data sync
+- **v2.0** - UserData and addon_data sync implementation
 
 ## Credits
 
