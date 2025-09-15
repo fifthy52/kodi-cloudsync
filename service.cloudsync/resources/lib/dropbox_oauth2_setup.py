@@ -70,17 +70,38 @@ def setup_oauth2():
 
             if qr_choice:
                 try:
-                    # Generate and show QR code
-                    qr_ascii = SimpleQRGenerator.generate_qr_ascii(auth_url)
-                    qr_url = SimpleQRGenerator.generate_qr_url(auth_url)
+                    # Try to show real QR code image first
+                    try:
+                        import xbmcvfs
+                        temp_dir = xbmcvfs.translatePath("special://temp/")
+                        if not xbmcvfs.exists(temp_dir):
+                            xbmcvfs.mkdirs(temp_dir)
+                        qr_image_path = temp_dir + "oauth_qr.png"
+                    except:
+                        import tempfile
+                        qr_image_path = tempfile.gettempdir() + "/oauth_qr.png"
 
-                    qr_text = f"Scan this QR code with your phone:\n\n{qr_ascii}\n\nOr visit: {qr_url}\n\nOriginal URL: {auth_url}\n\nThen:\n1. Log in to Dropbox\n2. Click 'Allow'\n3. Copy the authorization code"
+                    # Download QR image
+                    if SimpleQRGenerator.download_qr_image(auth_url, qr_image_path):
+                        # Show image in Kodi image viewer
+                        xbmc.executebuiltin(f'ShowPicture({qr_image_path})')
 
-                    xbmc.log(f"[CloudSync] Showing QR code for: {auth_url}", xbmc.LOGINFO)
-                    dialog.textviewer("QR Code - Dropbox OAuth2", qr_text)
+                        dialog.ok("QR Code Displayed",
+                                "QR code image should be displayed.\n\n"
+                                "1. Scan with your mobile device\n"
+                                "2. Log in to Dropbox\n"
+                                "3. Click 'Allow'\n"
+                                "4. Copy the authorization code")
+                    else:
+                        # Fallback to URL display
+                        qr_url = SimpleQRGenerator.generate_qr_url(auth_url)
+                        qr_text = f"QR Code Generation:\n\nOnline QR Code: {qr_url}\n\nOriginal URL: {auth_url}\n\nInstructions:\n1. Open the QR URL in browser\n2. Scan the QR code with phone\n3. Log in to Dropbox\n4. Click 'Allow'\n5. Copy authorization code"
+
+                        dialog.textviewer("QR Code URL", qr_text)
+
                 except Exception as e:
-                    xbmc.log(f"[CloudSync] QR code generation failed: {e}", xbmc.LOGERROR)
-                    dialog.ok("QR Error", f"QR code generation failed.\nURL logged to Kodi log file.\n\nManual URL: {auth_url}")
+                    xbmc.log(f"[CloudSync] QR code display failed: {e}", xbmc.LOGERROR)
+                    dialog.ok("QR Error", f"QR code display failed.\nURL logged to Kodi log file.\n\nManual URL: {auth_url}")
 
         dialog.ok("Next Steps",
                   "1. Log in to Dropbox if needed\n"
