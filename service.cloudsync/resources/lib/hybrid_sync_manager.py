@@ -679,8 +679,9 @@ class HybridSyncManager:
                     xbmc.log("[CloudSync] Successfully uploaded favourites.xml to Dropbox", xbmc.LOGINFO)
                     # Mark file as synced
                     self.change_tracker.mark_file_synced(favorites_path, "favorites")
-                    # Reload skin to refresh favorites menu immediately
-                    self._reload_skin_for_favorites()
+                    # Try to refresh favorites display if enabled
+                    if self.addon.getSettingBool('favorites_refresh'):
+                        self._reload_skin_for_favorites()
                 else:
                     xbmc.log("[CloudSync] Failed to upload favourites.xml to Dropbox", xbmc.LOGERROR)
             elif not should_upload:
@@ -757,8 +758,9 @@ class HybridSyncManager:
 
             xbmc.log(f"[CloudSync] Successfully restored favourites.xml ({len(remote_content)} chars)", xbmc.LOGINFO)
 
-            # Reload skin to refresh favorites menu immediately
-            self._reload_skin_for_favorites()
+            # Try to refresh favorites display if enabled
+            if self.addon.getSettingBool('favorites_refresh'):
+                self._reload_skin_for_favorites()
 
         except Exception as e:
             xbmc.log(f"[CloudSync] Error restoring favorites: {e}", xbmc.LOGERROR)
@@ -884,14 +886,20 @@ class HybridSyncManager:
             xbmc.log(f"[CloudSync] Error syncing {filename}: {e}", xbmc.LOGERROR)
 
     def _reload_skin_for_favorites(self):
-        """Reload skin to refresh favorites menu without restarting Kodi."""
+        """Attempt to refresh favorites display in skin.
+
+        Note: Kodi has no reliable way to refresh favorites.xml changes.
+        According to official docs, only LoadProfile() works but causes UX issues.
+        ReloadSkin() may not work for all skins (especially Arctic Zephyr).
+        Consider this experimental - may be removed if ineffective.
+        """
         try:
-            xbmc.log("[CloudSync] Reloading skin to refresh favorites menu", xbmc.LOGINFO)
-            # Use ReloadSkin builtin function to refresh the skin immediately
+            xbmc.log("[CloudSync] Attempting to refresh favorites display", xbmc.LOGINFO)
+            # Try ReloadSkin - may not work for all skins
             xbmc.executebuiltin("ReloadSkin()")
-            xbmc.log("[CloudSync] Skin reloaded successfully", xbmc.LOGINFO)
+            xbmc.log("[CloudSync] Skin reload attempted (effectiveness varies by skin)", xbmc.LOGINFO)
         except Exception as e:
-            xbmc.log(f"[CloudSync] Error reloading skin: {e}", xbmc.LOGERROR)
+            xbmc.log(f"[CloudSync] Error attempting favorites refresh: {e}", xbmc.LOGERROR)
 
 
 

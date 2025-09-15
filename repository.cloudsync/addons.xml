@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <addons>
-    <addon id="service.cloudsync" name="CloudSync" version="4.1.3" provider-name="CloudSync">
+    <addon id="service.cloudsync" name="CloudSync" version="4.2.0" provider-name="CloudSync">
         <requires>
             <import addon="xbmc.python" version="3.0.0"/>
         </requires>
@@ -16,6 +16,7 @@
             <source>https://github.com/fifthy52/kodi-cloudsync</source>
             <email></email>
             <news>
+v4.2.0 - Simplified settings UI, improved repository compatibility, documented favorites limitations
 v4.1.3 - Fixed repository schema for Kodi 21+, removed missing assets
 v4.1.2 - Fixed dialog overlaps, improved web setup UX
 v4.1.0 - Added Simple Web Setup with paste interface
