@@ -201,7 +201,7 @@ class SimpleSetupHandler(BaseHTTPRequestHandler):
                 # Mark as complete
                 self.server.setup_complete = True
 
-                xbmc.log("[CloudSync] Web setup completed successfully", xbmc.LOGINFO)
+                xbmc.log("[CloudSync] Web setup completed successfully - flag set to True", xbmc.LOGINFO)
 
                 # Send success page
                 html = """
@@ -340,4 +340,14 @@ class SimpleWebSetup:
 
     def is_complete(self):
         """Check if setup is complete."""
-        return self.server and hasattr(self.server, 'setup_complete') and self.server.setup_complete
+        if not self.server:
+            return False
+
+        if not hasattr(self.server, 'setup_complete'):
+            return False
+
+        is_done = self.server.setup_complete
+        if is_done:
+            xbmc.log("[CloudSync] is_complete() returning True - setup is done!", xbmc.LOGINFO)
+
+        return is_done

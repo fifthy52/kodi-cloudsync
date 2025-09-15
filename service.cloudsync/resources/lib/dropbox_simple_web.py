@@ -55,33 +55,43 @@ def simple_web_setup():
             except:
                 pass
 
-        # Wait for completion
+        # Wait for completion with faster polling
         progress = xbmcgui.DialogProgress()
         progress.create("Simple Web Setup", f"Server: {server_url}")
 
         try:
-            for i in range(300):  # 5 minutes max
+            # Use faster polling - check every 0.5 seconds for better responsiveness
+            total_checks = 600  # 5 minutes = 600 * 0.5 seconds
+
+            for i in range(total_checks):
                 if progress.iscanceled():
+                    xbmc.log("[CloudSync] Web setup cancelled by user", xbmc.LOGINFO)
                     break
 
+                # Check completion status more frequently
                 if web_server.is_complete():
+                    xbmc.log("[CloudSync] Web setup detected completion", xbmc.LOGINFO)
                     progress.update(100, "✅ Setup completed!")
-                    xbmc.sleep(2000)
+                    progress.close()  # Close progress immediately
+
+                    # Show success dialog
                     dialog.ok("Success! 🎉",
                              "CloudSync setup completed successfully!\n\n"
                              "✅ Dropbox is now configured\n"
                              "🔄 Syncing will start automatically\n"
                              "🌐 You can close the browser")
-                    break
+                    return True
 
-                mins = (300 - i) // 60
-                secs = (300 - i) % 60
-                progress.update(int(i * 100 / 300),
-                              f"Complete setup in your browser\n"
-                              f"Time remaining: {mins}:{secs:02d}\n"
-                              f"URL: {server_url}")
+                # Update progress every 2 seconds (every 4th check)
+                if i % 4 == 0:
+                    mins = (total_checks - i) // 120  # 120 checks per minute
+                    secs = ((total_checks - i) % 120) // 2
+                    progress.update(int(i * 100 / total_checks),
+                                  f"Complete setup in your browser\n"
+                                  f"Time remaining: {mins}:{secs:02d}\n"
+                                  f"URL: {server_url}")
 
-                xbmc.sleep(1000)
+                xbmc.sleep(500)  # Check every 500ms instead of 1000ms
             else:
                 # Timeout
                 progress.close()
