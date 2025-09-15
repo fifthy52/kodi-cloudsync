@@ -11,10 +11,11 @@
     <setting id="dropbox_refresh_token" type="text" label="Refresh Token" default="" option="hidden" enable="eq(-2,true)"/>
     <setting id="dropbox_app_key" type="text" label="App Key" default="" option="hidden" enable="eq(-3,true)"/>
     <setting id="dropbox_app_secret" type="text" label="App Secret" default="" option="hidden" enable="eq(-4,true)"/>
-    <setting id="dropbox_web_setup" type="action" label="🌐 Web Setup (Recommended)" action="RunScript(special://home/addons/service.cloudsync/resources/lib/dropbox_web_setup.py)" enable="eq(-5,true)"/>
-    <setting id="dropbox_setup" type="action" label="📱 OAuth2 Setup (Mobile QR)" action="RunScript(special://home/addons/service.cloudsync/resources/lib/dropbox_oauth2_setup.py)" enable="eq(-6,true)"/>
-    <setting id="dropbox_setup_legacy" type="action" label="📝 Legacy Token Setup" action="RunScript(special://home/addons/service.cloudsync/resources/lib/dropbox_auth_simple.py)" enable="eq(-7,true)"/>
-    <setting id="test_connection" type="action" label="Test Connection" action="RunScript(special://home/addons/service.cloudsync/resources/lib/dropbox_test_simple.py)" enable="eq(-8,true)"/>
+    <setting id="dropbox_simple_web" type="action" label="✨ Simple Web Setup (Best)" action="RunScript(special://home/addons/service.cloudsync/resources/lib/dropbox_simple_web.py)" enable="eq(-5,true)"/>
+    <setting id="dropbox_web_setup" type="action" label="🌐 Advanced Web Setup" action="RunScript(special://home/addons/service.cloudsync/resources/lib/dropbox_web_setup.py)" enable="eq(-6,true)"/>
+    <setting id="dropbox_setup" type="action" label="📱 Mobile QR Setup" action="RunScript(special://home/addons/service.cloudsync/resources/lib/dropbox_oauth2_setup.py)" enable="eq(-7,true)"/>
+    <setting id="dropbox_setup_legacy" type="action" label="📝 Manual Token Setup" action="RunScript(special://home/addons/service.cloudsync/resources/lib/dropbox_auth_simple.py)" enable="eq(-8,true)"/>
+    <setting id="test_connection" type="action" label="Test Connection" action="RunScript(special://home/addons/service.cloudsync/resources/lib/dropbox_test_simple.py)" enable="eq(-9,true)"/>
   </category>
 
   <category label="Sync Options">
