@@ -17,17 +17,67 @@ class DropboxProviderSimple:
     def __init__(self):
         self.addon = xbmcaddon.Addon('service.cloudsync')
         self.access_token = self.addon.getSetting('dropbox_access_token')
+        self.refresh_token = self.addon.getSetting('dropbox_refresh_token')
+        self.app_key = self.addon.getSetting('dropbox_app_key')
+        self.app_secret = self.addon.getSetting('dropbox_app_secret')
         self.sync_folder = "/CloudSync"
     
     def is_available(self):
         """Check if Dropbox is configured."""
-        return bool(self.access_token)
+        return bool(self.access_token or (self.refresh_token and self.app_key and self.app_secret))
     
-    def test_connection(self):
-        """Test Dropbox connection."""
-        if not self.access_token:
-            xbmc.log("[CloudSync] No Dropbox access token configured", xbmc.LOGWARNING)
+    def refresh_access_token(self):
+        """Refresh access token using refresh token."""
+        if not (self.refresh_token and self.app_key and self.app_secret):
+            xbmc.log("[CloudSync] Missing refresh token or app credentials", xbmc.LOGWARNING)
             return False
+
+        try:
+            data = {
+                'refresh_token': self.refresh_token,
+                'grant_type': 'refresh_token',
+                'client_id': self.app_key,
+                'client_secret': self.app_secret
+            }
+
+            encoded_data = urllib.parse.urlencode(data).encode('utf-8')
+
+            req = urllib.request.Request(
+                "https://api.dropboxapi.com/oauth2/token",
+                data=encoded_data,
+                headers={'Content-Type': 'application/x-www-form-urlencoded'}
+            )
+
+            with urllib.request.urlopen(req, timeout=10) as response:
+                result = json.loads(response.read().decode('utf-8'))
+
+                if 'access_token' in result:
+                    self.access_token = result['access_token']
+                    # Save new access token to settings
+                    self.addon.setSetting('dropbox_access_token', self.access_token)
+                    xbmc.log("[CloudSync] Successfully refreshed Dropbox access token", xbmc.LOGINFO)
+                    return True
+                else:
+                    xbmc.log("[CloudSync] Invalid response from token refresh", xbmc.LOGERROR)
+                    return False
+
+        except urllib.error.HTTPError as e:
+            xbmc.log(f"[CloudSync] Token refresh HTTP Error {e.code}: {e.reason}", xbmc.LOGERROR)
+            return False
+        except Exception as e:
+            xbmc.log(f"[CloudSync] Token refresh error: {e}", xbmc.LOGERROR)
+            return False
+
+    def test_connection(self):
+        """Test Dropbox connection with automatic token refresh."""
+        if not self.access_token:
+            if self.refresh_token:
+                xbmc.log("[CloudSync] No access token, attempting refresh", xbmc.LOGINFO)
+                if not self.refresh_access_token():
+                    return False
+            else:
+                xbmc.log("[CloudSync] No Dropbox access token configured", xbmc.LOGWARNING)
+                return False
         
         try:
             headers = {
@@ -55,14 +105,52 @@ class DropboxProviderSimple:
                     
         except urllib.error.HTTPError as e:
             if e.code == 401:
-                xbmc.log("[CloudSync] Invalid Dropbox access token", xbmc.LOGERROR)
+                xbmc.log("[CloudSync] Access token expired, attempting refresh", xbmc.LOGWARNING)
+                if self.refresh_token and self.refresh_access_token():
+                    # Retry the connection test with new token
+                    return self.test_connection()
+                else:
+                    xbmc.log("[CloudSync] Unable to refresh expired token", xbmc.LOGERROR)
             else:
                 xbmc.log(f"[CloudSync] Dropbox HTTP Error {e.code}: {e.reason}", xbmc.LOGERROR)
             return False
         except Exception as e:
             xbmc.log(f"[CloudSync] Dropbox connection error: {e}", xbmc.LOGERROR)
             return False
-    
+
+    def _make_api_request(self, url, data=None, headers=None, content_api=False, retry_on_401=True):
+        """Make API request with automatic token refresh on 401 errors."""
+        if headers is None:
+            headers = {}
+
+        # Ensure we have an access token
+        if not self.access_token and self.refresh_token:
+            if not self.refresh_access_token():
+                raise Exception("Unable to obtain access token")
+
+        # Add authorization header
+        headers['Authorization'] = f'Bearer {self.access_token}'
+
+        try:
+            if data is not None:
+                if isinstance(data, dict):
+                    data = json.dumps(data).encode('utf-8')
+                elif isinstance(data, str):
+                    data = data.encode('utf-8')
+
+            req = urllib.request.Request(url, data=data, headers=headers)
+            return urllib.request.urlopen(req, timeout=30)
+
+        except urllib.error.HTTPError as e:
+            if e.code == 401 and retry_on_401 and self.refresh_token:
+                xbmc.log("[CloudSync] API request got 401, refreshing token", xbmc.LOGDEBUG)
+                if self.refresh_access_token():
+                    # Update authorization header and retry once
+                    headers['Authorization'] = f'Bearer {self.access_token}'
+                    req = urllib.request.Request(url, data=data, headers=headers)
+                    return urllib.request.urlopen(req, timeout=30)
+            raise
+
     def ensure_folder_exists(self):
         """Ensure sync folder exists."""
         try:
