@@ -1,0 +1,35 @@
+# Kodi CloudSync Project .gitignore
+
+# Build artifacts
+*.zip
+*.pyc
+__pycache__/
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# OS specific
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# IDE specific
+.vscode/
+.idea/
+*.sublime-*
+
+# Test files
+test_*
+debug_*
+temp_*
+
+# Credentials (if any get accidentally created)
+credentials.json
+tokens.json
+*.key
+
+# Claude artifacts
+.claude/

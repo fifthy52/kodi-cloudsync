@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<settings>
+  <category label="General">
+    <setting id="enabled" type="bool" label="Enable CloudSync" default="true"/>
+    <setting id="debug_logging" type="bool" label="Enable Debug Logging" default="false"/>
+  </category>
+
+  <category label="Dropbox">
+    <setting id="dropbox_enabled" type="bool" label="Enable Dropbox Sync" default="false"/>
+    <setting id="dropbox_access_token" type="text" label="Access Token" default="" option="hidden" enable="eq(-1,true)"/>
+    <setting id="dropbox_setup" type="action" label="Setup Dropbox" action="RunScript(special://home/addons/service.cloudsync/resources/lib/dropbox_auth_simple.py)" enable="eq(-2,true)"/>
+    <setting id="test_connection" type="action" label="Test Connection" action="RunScript(special://home/addons/service.cloudsync/resources/lib/dropbox_test_simple.py)" enable="eq(-3,true)"/>
+  </category>
+
+  <category label="Sync Options">
+    <setting id="sync_watched" type="bool" label="Sync Watched Status" default="true"/>
+    <setting id="sync_resume_points" type="bool" label="Sync Resume Points" default="true"/>
+    <setting id="sync_favorites" type="bool" label="Sync Favorites" default="true"/>
+    <setting id="sync_sources" type="bool" label="Sync Sources" default="false"/>
+    <setting id="sync_playlists" type="bool" label="Sync Playlists" default="false"/>
+  </category>
+
+  <category label="Sync Behavior">
+    <setting id="auto_sync" type="bool" label="Auto Sync on Changes" default="true"/>
+    <setting id="sync_interval" type="slider" label="Manual Sync Interval (minutes)" default="5" range="1,1,60"/>
+    <setting id="conflict_resolution" type="select" label="Conflict Resolution" default="newer" values="newer|local|remote"/>
+    <setting id="perform_full_sync" type="action" label="Perform Full Sync Now" action="RunScript(special://home/addons/service.cloudsync/resources/lib/manual_sync.py)"/>
+  </category>
+
+  <category label="Debug">
+    <setting id="debug_favorites" type="action" label="Debug Favorites" action="RunScript(special://home/addons/service.cloudsync/resources/lib/debug_favorites.py)"/>
+    <setting id="test_favorites" type="action" label="Test Favorites API" action="RunScript(special://home/addons/service.cloudsync/resources/lib/test_favorites.py)"/>
+    <setting id="debug_favorites_data" type="action" label="Debug Favorites Data" action="RunScript(special://home/addons/service.cloudsync/resources/lib/debug_favorites_data.py)"/>
+  </category>
+</settings>
