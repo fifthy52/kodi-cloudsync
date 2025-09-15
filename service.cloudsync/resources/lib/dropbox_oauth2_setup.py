@@ -34,13 +34,15 @@ def setup_oauth2():
     # Step 1: Show setup instructions
     dialog = xbmcgui.Dialog()
 
-    dialog.ok("Dropbox OAuth2 Setup",
-              "Before starting:\n\n"
+    dialog.ok("Dropbox OAuth2 Setup - Step 1",
+              "Before starting, setup redirect URIs:\n\n"
               "1. Go to Dropbox App Console\n"
-              "2. In OAuth2 Redirect URIs, add:\n"
+              "2. In OAuth2 Redirect URIs, add ALL of these:\n"
+              "   http://localhost:8765\n"
+              "   http://localhost:8766\n"
+              "   http://localhost:8767\n"
               "   http://localhost:8080\n"
-              "   http://localhost:8081\n"
-              "   http://localhost:8082\n\n"
+              "   http://localhost:8081\n\n"
               "This enables automatic code capture!")
 
     # Get App Key and Secret from user
@@ -62,8 +64,17 @@ def setup_oauth2():
             if oauth_server.start_server():
                 redirect_uri = oauth_server.get_redirect_uri()
                 xbmc.log(f"[CloudSync] OAuth server running on {redirect_uri}", xbmc.LOGINFO)
+                dialog.notification("CloudSync", f"Server ready on port {oauth_server.port}", xbmcgui.NOTIFICATION_INFO, 2000)
             else:
                 oauth_server = None
+        except OSError as e:
+            if "No free ports available" in str(e):
+                xbmc.log("[CloudSync] All localhost ports are busy", xbmc.LOGWARNING)
+                dialog.ok("Port Conflict",
+                         "All localhost ports (8080-8100) are busy.\n"
+                         "Falling back to manual authorization.\n\n"
+                         "Consider closing other apps using localhost ports.")
+            oauth_server = None
         except Exception as e:
             xbmc.log(f"[CloudSync] OAuth server failed: {e}", xbmc.LOGWARNING)
             oauth_server = None

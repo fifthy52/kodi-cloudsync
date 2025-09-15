@@ -92,14 +92,20 @@ class OAuthServer:
 
     def find_free_port(self):
         """Find a free port for the server."""
-        for port in range(8080, 8090):
+        # Try preferred ports first
+        preferred_ports = [8765, 8766, 8767, 8768, 8769]
+
+        # Then try common range
+        all_ports = preferred_ports + list(range(8080, 8100))
+
+        for port in all_ports:
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.bind(('localhost', port))
                     return port
             except OSError:
                 continue
-        raise OSError("No free ports available")
+        raise OSError("No free ports available in range 8080-8100")
 
     def start_server(self):
         """Start the OAuth server."""
