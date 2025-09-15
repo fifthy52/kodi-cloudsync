@@ -31,6 +31,8 @@ class HybridSyncManager:
         self.sync_watched = True
         self.sync_resume = True
         self.sync_favorites_enabled = True
+        self.sync_userdata_enabled = False
+        self.sync_addon_data_enabled = False
         self.conflict_resolution = 'newer'
     
     def initialize(self):
@@ -198,6 +200,12 @@ class HybridSyncManager:
             xbmc.log("[CloudSync] Starting sync_favorites", xbmc.LOGINFO)
             self.sync_favorites()
 
+            xbmc.log("[CloudSync] Starting sync_userdata", xbmc.LOGINFO)
+            self.sync_userdata()
+
+            xbmc.log("[CloudSync] Starting sync_addon_data", xbmc.LOGINFO)
+            self.sync_addon_data()
+
             # Apply local database back to Kodi
             xbmc.log("[CloudSync] Starting restore to Kodi", xbmc.LOGINFO)
             self._restore_to_kodi()
@@ -341,6 +349,8 @@ class HybridSyncManager:
             self.sync_watched = self.addon.getSettingBool('sync_watched')
             self.sync_resume = self.addon.getSettingBool('sync_resume_points')
             self.sync_favorites_enabled = self.addon.getSettingBool('sync_favorites')
+            self.sync_userdata_enabled = self.addon.getSettingBool('sync_userdata')
+            self.sync_addon_data_enabled = self.addon.getSettingBool('sync_addon_data')
             self.conflict_resolution = self.addon.getSetting('conflict_resolution') or 'newer'
             
         except Exception as e:
@@ -708,3 +718,239 @@ class HybridSyncManager:
 
         except Exception as e:
             xbmc.log(f"[CloudSync] Error restoring favorites: {e}", xbmc.LOGERROR)
+
+    def sync_userdata(self):
+        """Sync UserData files (sources.xml, passwords.xml, etc.) with conflict resolution."""
+        if not self.sync_userdata_enabled:
+            return
+
+        # UserData files to sync
+        userdata_files = [
+            'sources.xml',
+            'passwords.xml',
+            'mediasources.xml',
+            'advancedsettings.xml'
+        ]
+
+        for filename in userdata_files:
+            self._sync_userdata_file(filename)
+
+    def _sync_userdata_file(self, filename):
+        """Sync a single UserData file with conflict resolution."""
+        try:
+            # Get path to the file
+            try:
+                import xbmcvfs
+                file_path = xbmcvfs.translatePath(f"special://profile/{filename}")
+            except:
+                file_path = xbmc.translatePath(f"special://profile/{filename}")
+
+            # Check if file exists locally
+            local_exists = False
+            try:
+                import xbmcvfs
+                local_exists = xbmcvfs.exists(file_path)
+            except:
+                import os
+                local_exists = os.path.exists(file_path)
+
+            local_content = None
+            if local_exists:
+                # Read local file
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    local_content = f.read()
+                xbmc.log(f"[CloudSync] Read local {filename} ({len(local_content)} chars)", xbmc.LOGINFO)
+
+            # Check remote version for conflict resolution
+            remote_content = None
+            if self.dropbox_enabled and self.dropbox:
+                remote_content = self.dropbox.download_file(f"userdata/{filename}")
+
+            # Conflict resolution logic
+            should_upload = True
+            should_download = False
+
+            if local_content and remote_content:
+                # Both exist - apply conflict resolution
+                if self.conflict_resolution == "local":
+                    should_upload = True
+                    should_download = False
+                elif self.conflict_resolution == "remote":
+                    should_upload = False
+                    should_download = True
+                elif self.conflict_resolution == "newer":
+                    # Use file size as a simple heuristic
+                    local_size = len(local_content)
+                    remote_size = len(remote_content)
+                    if local_size >= remote_size:
+                        should_upload = True
+                        should_download = False
+                    else:
+                        should_upload = False
+                        should_download = True
+                    xbmc.log(f"[CloudSync] {filename} conflict resolution: local {local_size} chars vs remote {remote_size} chars", xbmc.LOGINFO)
+            elif local_content and not remote_content:
+                # Only local exists - upload
+                should_upload = True
+                should_download = False
+            elif not local_content and remote_content:
+                # Only remote exists - download
+                should_upload = False
+                should_download = True
+            else:
+                # Neither exists - nothing to do
+                xbmc.log(f"[CloudSync] {filename} does not exist locally or remotely", xbmc.LOGINFO)
+                return
+
+            # Upload to Dropbox if needed
+            if should_upload and local_content and self.dropbox_enabled and self.dropbox:
+                success = self.dropbox.upload_file(f"userdata/{filename}", local_content)
+                if success:
+                    xbmc.log(f"[CloudSync] Successfully uploaded {filename} to Dropbox", xbmc.LOGINFO)
+                else:
+                    xbmc.log(f"[CloudSync] Failed to upload {filename} to Dropbox", xbmc.LOGERROR)
+
+            # Download from Dropbox if needed
+            if should_download and remote_content:
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(remote_content)
+                xbmc.log(f"[CloudSync] Successfully downloaded {filename} from Dropbox ({len(remote_content)} chars)", xbmc.LOGINFO)
+
+        except Exception as e:
+            xbmc.log(f"[CloudSync] Error syncing {filename}: {e}", xbmc.LOGERROR)
+
+    def sync_addon_data(self):
+        """Sync selective addon_data files with conflict resolution."""
+        if not self.sync_addon_data_enabled:
+            return
+
+        try:
+            # Get addon_data path
+            try:
+                import xbmcvfs
+                addon_data_path = xbmcvfs.translatePath("special://profile/addon_data/")
+            except:
+                addon_data_path = xbmc.translatePath("special://profile/addon_data/")
+
+            # List of important addon types and their config files to sync
+            important_addons = {
+                # Media center addons
+                'script.trakt': ['settings.xml'],
+                'plugin.video.netflix': ['settings.xml'],
+                'plugin.video.youtube': ['settings.xml', 'cookies.dat'],
+                'plugin.video.jellyfin': ['settings.xml'],
+                'plugin.video.plex': ['settings.xml'],
+
+                # Skin addons
+                'skin.estuary': ['settings.xml'],
+                'skin.confluence': ['settings.xml'],
+                'skin.aeon.nox.5': ['settings.xml'],
+
+                # Other important addons
+                'service.subtitles.opensubtitles': ['settings.xml'],
+                'weather.openweathermap.extended': ['settings.xml'],
+            }
+
+            import os
+            for addon_id, config_files in important_addons.items():
+                addon_path = os.path.join(addon_data_path, addon_id)
+
+                # Check if addon is installed
+                if os.path.exists(addon_path):
+                    xbmc.log(f"[CloudSync] Found addon {addon_id}, syncing config files", xbmc.LOGINFO)
+
+                    for config_file in config_files:
+                        self._sync_addon_config_file(addon_id, config_file)
+                else:
+                    xbmc.log(f"[CloudSync] Addon {addon_id} not installed, skipping", xbmc.LOGDEBUG)
+
+        except Exception as e:
+            xbmc.log(f"[CloudSync] Error in addon_data sync: {e}", xbmc.LOGERROR)
+
+    def _sync_addon_config_file(self, addon_id, config_file):
+        """Sync a single addon config file with conflict resolution."""
+        try:
+            # Get full path to config file
+            try:
+                import xbmcvfs
+                config_path = xbmcvfs.translatePath(f"special://profile/addon_data/{addon_id}/{config_file}")
+            except:
+                config_path = xbmc.translatePath(f"special://profile/addon_data/{addon_id}/{config_file}")
+
+            # Check if file exists locally
+            local_exists = False
+            try:
+                import xbmcvfs
+                local_exists = xbmcvfs.exists(config_path)
+            except:
+                import os
+                local_exists = os.path.exists(config_path)
+
+            local_content = None
+            if local_exists:
+                # Read local file
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    local_content = f.read()
+                xbmc.log(f"[CloudSync] Read local {addon_id}/{config_file} ({len(local_content)} chars)", xbmc.LOGINFO)
+
+            # Check remote version
+            remote_content = None
+            if self.dropbox_enabled and self.dropbox:
+                remote_content = self.dropbox.download_file(f"addon_data/{addon_id}/{config_file}")
+
+            # Conflict resolution logic
+            should_upload = True
+            should_download = False
+
+            if local_content and remote_content:
+                # Both exist - apply conflict resolution
+                if self.conflict_resolution == "local":
+                    should_upload = True
+                    should_download = False
+                elif self.conflict_resolution == "remote":
+                    should_upload = False
+                    should_download = True
+                elif self.conflict_resolution == "newer":
+                    # For addon configs, prefer local changes (user likely configured locally)
+                    # But if remote is significantly larger, prefer remote
+                    local_size = len(local_content)
+                    remote_size = len(remote_content)
+                    if remote_size > local_size * 1.2:  # 20% larger threshold
+                        should_upload = False
+                        should_download = True
+                    else:
+                        should_upload = True
+                        should_download = False
+                    xbmc.log(f"[CloudSync] {addon_id}/{config_file} conflict resolution: local {local_size} chars vs remote {remote_size} chars", xbmc.LOGINFO)
+            elif local_content and not remote_content:
+                # Only local exists - upload
+                should_upload = True
+                should_download = False
+            elif not local_content and remote_content:
+                # Only remote exists - download
+                should_upload = False
+                should_download = True
+            else:
+                # Neither exists - nothing to do
+                return
+
+            # Upload to Dropbox if needed
+            if should_upload and local_content and self.dropbox_enabled and self.dropbox:
+                success = self.dropbox.upload_file(f"addon_data/{addon_id}/{config_file}", local_content)
+                if success:
+                    xbmc.log(f"[CloudSync] Successfully uploaded {addon_id}/{config_file} to Dropbox", xbmc.LOGINFO)
+                else:
+                    xbmc.log(f"[CloudSync] Failed to upload {addon_id}/{config_file} to Dropbox", xbmc.LOGERROR)
+
+            # Download from Dropbox if needed
+            if should_download and remote_content:
+                # Create directory if it doesn't exist
+                import os
+                os.makedirs(os.path.dirname(config_path), exist_ok=True)
+
+                with open(config_path, 'w', encoding='utf-8') as f:
+                    f.write(remote_content)
+                xbmc.log(f"[CloudSync] Successfully downloaded {addon_id}/{config_file} from Dropbox ({len(remote_content)} chars)", xbmc.LOGINFO)
+
+        except Exception as e:
+            xbmc.log(f"[CloudSync] Error syncing {addon_id}/{config_file}: {e}", xbmc.LOGERROR)
