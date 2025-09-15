@@ -12,9 +12,5 @@
         <description>Official repository for CloudSync addon - comprehensive Kodi syncing solution using Dropbox cloud storage</description>
         <disclaimer></disclaimer>
         <platform>all</platform>
-        <assets>
-            <icon>icon.png</icon>
-            <fanart>fanart.jpg</fanart>
-        </assets>
     </extension>
 </addon>
