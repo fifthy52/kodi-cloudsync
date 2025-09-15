@@ -1,72 +1,86 @@
-name: Create Release
+name: Release CloudSync
 
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - 'v*'
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-    - name: Get version from tag
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+
+    - name: Extract version from tag
       id: get_version
       run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
     - name: Create addon zip
       run: |
         cd service.cloudsync
-        zip -r ../service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip .
+        zip -r ../service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip . -x "*.pyc" "*/__pycache__/*"
+
+    - name: Create repository zip
+      run: |
+        cd repository.cloudsync
+        zip -r ../repository.cloudsync.zip . -x "*.pyc" "*/__pycache__/*"
 
     - name: Generate checksums
       run: |
-        sha256sum service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip > service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip.sha256
+        md5sum service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip > service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip.md5
+        md5sum repository.cloudsync.zip > repository.cloudsync.zip.md5
 
-    - name: Create Release
-      uses: actions/create-release@v1
-      id: create_release
+        # Update repository files
+        python generate_repository.py
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ github.ref }}
-        release_name: CloudSync v${{ steps.get_version.outputs.VERSION }}
+        files: |
+          service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip
+          service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip.md5
+          repository.cloudsync.zip
+          repository.cloudsync.zip.md5
+          repository.cloudsync/addons.xml
+          repository.cloudsync/addons.xml.md5
+        name: CloudSync v${{ steps.get_version.outputs.VERSION }}
         body: |
           ## CloudSync v${{ steps.get_version.outputs.VERSION }}
 
-          ### Installation
-          1. Download `service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip`
-          2. In Kodi: Settings → Add-ons → Install from zip file
-          3. Select the downloaded zip file
-          4. Configure Dropbox in addon settings
+          ### Installation Options
 
-          ### Changelog
-          See commit history for detailed changes in this version.
+          **Option 1: Direct Install**
+          - Download `service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip`
+          - Install via Kodi → Install from zip file
 
-          ### Verification
-          SHA256: See attached `.sha256` file
+          **Option 2: Repository Install (Recommended for auto-updates)**
+          - Download `repository.cloudsync.zip`
+          - Install repository in Kodi first
+          - Then install CloudSync from repository
+
+          ### Features
+          - ✨ Simple Web Setup - Easy OAuth2 setup from any device on your network
+          - 📱 Mobile QR Setup - Quick setup using QR codes
+          - 🔄 Automatic Updates - When installed from repository
+          - ☁️ Dropbox Sync - Watched status, resume points, favorites, UserData files
+          - 🗜️ GZIP Compression - Up to 90% data transfer reduction
+
+          ### Setup
+          1. Go to addon settings
+          2. Choose "✨ Simple Web Setup (Best)"
+          3. Complete setup in your browser
+
+          **Full documentation:** [README.md](https://github.com/${{ github.repository }})
         draft: false
         prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Upload Release Asset - ZIP
-      uses: actions/upload-release-asset@v1
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip
-        asset_name: service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip
-        asset_content_type: application/zip
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Upload Release Asset - SHA256
-      uses: actions/upload-release-asset@v1
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip.sha256
-        asset_name: service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip.sha256
-        asset_content_type: text/plain
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
