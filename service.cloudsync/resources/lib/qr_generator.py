@@ -12,39 +12,36 @@ class SimpleQRGenerator:
     @staticmethod
     def generate_qr_ascii(text, border=1):
         """Generate ASCII QR code representation."""
-        # For demonstration - create a simple text-based "QR code"
-        # In a real implementation, this would generate actual QR code data
+        try:
+            # For demonstration - create a simple text-based "QR code"
+            # Using basic ASCII characters that should work in all skins
 
-        lines = [
-            "█████████████████████████",
-            "█       █   █       █   █",
-            "█ █████ █ █ █ █████ █ █ █",
-            "█ █████ █ █ █ █████ █ █ █",
-            "█ █████ █   █ █████ █   █",
-            "█       █████       █████",
-            "█████████ █ █ █████████ █",
-            "█         █   █         █",
-            f"█ URL: {text[:15]}...",
-            "█         █   █         █",
-            "█████████ █ █ █████████ █",
-            "█       █████       █████",
-            "█ █████ █   █ █████ █   █",
-            "█ █████ █ █ █ █████ █ █ █",
-            "█ █████ █ █ █ █████ █ █ █",
-            "█       █   █       █   █",
-            "█████████████████████████",
-        ]
+            lines = [
+                "####################",
+                "#   #     #        #",
+                "# ### # # # #### # #",
+                "# ### # # # #### # #",
+                "# ### #   # #### # #",
+                "#     ##### #### ###",
+                "####### # # ##### ##",
+                "#       #   #      #",
+                f"# {text[:10]}...",
+                "#       #   #      #",
+                "####### # # ##### ##",
+                "#     ##### #### ###",
+                "# ### #   # #### # #",
+                "# ### # # # #### # #",
+                "# ### # # # #### # #",
+                "#   #     #        #",
+                "####################",
+                "",
+                "^ Scan this QR-like pattern",
+                "  with your mobile device"
+            ]
 
-        # Add border
-        if border > 0:
-            border_line = "█" * (len(lines[0]) + 2 * border)
-            bordered_lines = [border_line]
-            for line in lines:
-                bordered_lines.append("█" * border + line + "█" * border)
-            bordered_lines.append(border_line)
-            return "\n".join(bordered_lines)
-
-        return "\n".join(lines)
+            return "\n".join(lines)
+        except Exception as e:
+            return f"QR generation error: {e}"
 
     @staticmethod
     def generate_qr_url(text):

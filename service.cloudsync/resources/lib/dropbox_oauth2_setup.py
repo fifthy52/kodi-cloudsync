@@ -10,7 +10,14 @@ import urllib.parse
 import xbmc
 import xbmcaddon
 import xbmcgui
-from qr_generator import SimpleQRGenerator
+
+# Import QR generator with error handling
+try:
+    from qr_generator import SimpleQRGenerator
+    QR_AVAILABLE = True
+except ImportError:
+    QR_AVAILABLE = False
+    xbmc.log("[CloudSync] QR generator not available", xbmc.LOGWARNING)
 
 
 def setup_oauth2():
@@ -54,35 +61,49 @@ def setup_oauth2():
 
         xbmc.log(f"[CloudSync] Opened browser with OAuth URL on {system}", xbmc.LOGINFO)
 
-        # Show QR code option
-        qr_choice = dialog.yesno("Dropbox OAuth2 Setup",
-                               "Browser should open automatically.\n\n"
-                               "Would you like to see a QR code for mobile scanning?",
-                               yeslabel="Show QR Code", nolabel="Continue")
+        # Show QR code option only if available
+        if QR_AVAILABLE:
+            qr_choice = dialog.yesno("Dropbox OAuth2 Setup",
+                                   "Browser should open automatically.\n\n"
+                                   "Would you like to see a QR code for mobile scanning?",
+                                   yeslabel="Show QR Code", nolabel="Continue")
 
-        if qr_choice:
-            # Generate and show QR code
-            qr_ascii = SimpleQRGenerator.generate_qr_ascii(auth_url)
-            qr_url = SimpleQRGenerator.generate_qr_url(auth_url)
+            if qr_choice:
+                try:
+                    # Generate and show QR code
+                    qr_ascii = SimpleQRGenerator.generate_qr_ascii(auth_url)
+                    qr_url = SimpleQRGenerator.generate_qr_url(auth_url)
 
-            qr_text = f"Scan this QR code with your phone:\n\n{qr_ascii}\n\nOr visit: {qr_url}\n\nThen:\n1. Log in to Dropbox\n2. Click 'Allow'\n3. Copy the authorization code"
-            dialog.textviewer("QR Code - Dropbox OAuth2", qr_text)
+                    qr_text = f"Scan this QR code with your phone:\n\n{qr_ascii}\n\nOr visit: {qr_url}\n\nOriginal URL: {auth_url}\n\nThen:\n1. Log in to Dropbox\n2. Click 'Allow'\n3. Copy the authorization code"
+
+                    xbmc.log(f"[CloudSync] Showing QR code for: {auth_url}", xbmc.LOGINFO)
+                    dialog.textviewer("QR Code - Dropbox OAuth2", qr_text)
+                except Exception as e:
+                    xbmc.log(f"[CloudSync] QR code generation failed: {e}", xbmc.LOGERROR)
+                    dialog.ok("QR Error", f"QR code generation failed.\nURL logged to Kodi log file.\n\nManual URL: {auth_url}")
 
         dialog.ok("Next Steps",
                   "1. Log in to Dropbox if needed\n"
                   "2. Click 'Allow' to authorize the app\n"
                   "3. Copy the authorization code from the page\n\n"
                   "If browser didn't open, check Kodi log for the URL.")
-    except:
+    except Exception as browser_error:
         # Fallback - show URL and QR code if automatic opening fails
-        xbmc.log(f"[CloudSync] Browser auto-open failed, showing URL: {auth_url}", xbmc.LOGWARNING)
+        xbmc.log(f"[CloudSync] Browser auto-open failed: {browser_error}", xbmc.LOGWARNING)
 
-        # Always show QR code in fallback mode
-        qr_ascii = SimpleQRGenerator.generate_qr_ascii(auth_url)
-        qr_url = SimpleQRGenerator.generate_qr_url(auth_url)
+        if QR_AVAILABLE:
+            try:
+                # Show QR code in fallback mode
+                qr_ascii = SimpleQRGenerator.generate_qr_ascii(auth_url)
+                qr_url = SimpleQRGenerator.generate_qr_url(auth_url)
 
-        qr_text = f"Browser didn't open automatically. Use QR code:\n\n{qr_ascii}\n\nOr visit: {qr_url}\n\nManual URL: {auth_url}\n\nThen:\n1. Log in to Dropbox\n2. Click 'Allow'\n3. Copy the authorization code"
-        dialog.textviewer("QR Code - Manual Setup", qr_text)
+                qr_text = f"Browser didn't open automatically. Use QR code:\n\n{qr_ascii}\n\nOr visit: {qr_url}\n\nManual URL: {auth_url}\n\nThen:\n1. Log in to Dropbox\n2. Click 'Allow'\n3. Copy the authorization code"
+                dialog.textviewer("QR Code - Manual Setup", qr_text)
+            except Exception as qr_error:
+                xbmc.log(f"[CloudSync] QR fallback failed: {qr_error}", xbmc.LOGERROR)
+                dialog.ok("Manual Setup", f"Please open this URL manually:\n\n{auth_url}\n\n1. Log in to Dropbox\n2. Click 'Allow'\n3. Copy authorization code")
+        else:
+            dialog.ok("Manual Setup", f"Please open this URL manually:\n\n{auth_url}\n\n1. Log in to Dropbox\n2. Click 'Allow'\n3. Copy authorization code")
 
     # Step 4: Get authorization code from user
     auth_code = dialog.input("Enter Authorization Code:", type=xbmcgui.INPUT_ALPHANUM)
