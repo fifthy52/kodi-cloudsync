@@ -42,21 +42,32 @@ jobs:
     - name: Create addon ZIP and MD5
       if: steps.get_version.outputs.SKIP_BUILD == 'false'
       run: |
-        # Create addon ZIP
-        cd service.cloudsync
-        zip -r ../temp_addon.zip . -x "*.pyc" "*/__pycache__/*" "*.zip" "*.md5"
+        # Create proper Kodi addon ZIP structure with addon folder inside
+        mkdir -p temp_build/service.cloudsync
+        cp -r service.cloudsync/* temp_build/service.cloudsync/
+
+        # Remove any existing ZIP files from the copy
+        find temp_build/service.cloudsync -name "*.zip" -delete
+        find temp_build/service.cloudsync -name "*.md5" -delete
+
+        # Create ZIP with proper structure (service.cloudsync/ folder inside)
+        cd temp_build
+        zip -r ../temp_addon.zip service.cloudsync -x "*.pyc" "*/__pycache__/*"
         cd ..
 
         # Create service.cloudsync directory if it doesn't exist
         mkdir -p service.cloudsync
 
-        # Move ZIP to proper Kodi structure: service.cloudsync/service.cloudsync-VERSION.zip
+        # Move ZIP to proper location
         mv temp_addon.zip service.cloudsync/service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip
 
         # Generate MD5 in proper location
         cd service.cloudsync
         md5sum service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip > service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip.md5
         cd ..
+
+        # Clean up
+        rm -rf temp_build
 
         echo "Created service.cloudsync/service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip (Kodi standard structure)"
 
