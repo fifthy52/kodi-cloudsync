@@ -872,6 +872,8 @@ class HybridSyncManager:
             return
 
         try:
+            import os
+
             # Get addon_data path
             try:
                 import xbmcvfs
