@@ -34,13 +34,29 @@ jobs:
         cd repository.cloudsync
         zip -r ../repository.cloudsync.zip . -x "*.pyc" "*/__pycache__/*"
 
-    - name: Generate checksums
+    - name: Generate checksums and update repository
       run: |
         md5sum service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip > service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip.md5
         md5sum repository.cloudsync.zip > repository.cloudsync.zip.md5
 
         # Update repository files
         python generate_repository.py
+
+    - name: Commit updated repository files
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+
+        # Check if there are changes to commit
+        if ! git diff --quiet addons.xml addons.xml.md5 repository.cloudsync/ 2>/dev/null; then
+          echo "Repository files have been updated, committing changes..."
+          git add addons.xml addons.xml.md5 repository.cloudsync/ || true
+          git commit -m "Auto-update repository files for v${{ steps.get_version.outputs.VERSION }}" || true
+          git push origin main || true
+          echo "Repository files updated and pushed to main branch"
+        else
+          echo "No repository file changes to commit"
+        fi
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
