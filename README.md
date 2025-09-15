@@ -11,6 +11,7 @@ A comprehensive Kodi addon for synchronizing watched status, resume points, favo
 - **UserData Files Sync** - sources.xml, passwords.xml, mediasources.xml, advancedsettings.xml, profiles.xml, RssFeeds.xml, upnpserver.xml
 - **Addon Data Sync** - Automatic sync of addon configuration files with auto-discovery of all skin.* addons
 - **GZIP Compression** - Up to 90% data transfer reduction for all sync operations
+- **Intelligent Change Detection** - SHA256-based file tracking avoids unnecessary sync operations
 - **Dropbox Integration** - Simple token-based authentication
 - **Conflict Resolution** - Choose between "newer", "local", or "remote" strategies
 - **Advanced Conflict Resolution** - Per-file-type resolution strategies with smart heuristics
@@ -67,6 +68,7 @@ service.cloudsync/
 - **v1.2** - Smart conflict resolution for favorites
 - **v2.0** - UserData and addon_data sync implementation
 - **v2.1** - GZIP compression, auto skin discovery, expanded addon coverage
+- **v2.2** - Intelligent file change detection, ~90% performance improvement
 
 ## Credits
 
