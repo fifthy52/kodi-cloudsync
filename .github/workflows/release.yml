@@ -1,12 +1,15 @@
-name: Release CloudSync
+name: Auto-Update Repository
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
+    paths:
+      - 'service.cloudsync/addon.xml'
+      - 'addons.xml'
 
 jobs:
-  release:
+  update_repository:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -14,89 +17,55 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.x'
 
-    - name: Extract version from tag
+    - name: Extract version from addon.xml
       id: get_version
-      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      run: |
+        VERSION=$(grep -o 'version="[^"]*"' service.cloudsync/addon.xml | cut -d'"' -f2)
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        echo "Found version: $VERSION"
 
-    - name: Create addon zip
+    - name: Create addon ZIP and MD5
       run: |
         cd service.cloudsync
         zip -r ../service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip . -x "*.pyc" "*/__pycache__/*"
-
-    - name: Create repository zip
-      run: |
-        cd repository.cloudsync
-        zip -r ../repository.cloudsync.zip . -x "*.pyc" "*/__pycache__/*"
-
-    - name: Generate checksums and update repository
-      run: |
+        cd ..
         md5sum service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip > service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip.md5
-        md5sum repository.cloudsync.zip > repository.cloudsync.zip.md5
+        echo "Created service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip"
 
-        # Update repository files
-        python generate_repository.py
+    - name: Update addons.xml.md5
+      run: |
+        md5sum addons.xml | cut -d' ' -f1 > addons.xml.md5.temp
+        echo " *addons.xml" >> addons.xml.md5.temp
+        mv addons.xml.md5.temp addons.xml.md5
+        echo "Updated addons.xml.md5"
 
-    - name: Commit updated repository files
+    - name: Update repository.cloudsync files
+      run: |
+        if [ -d "repository.cloudsync" ]; then
+          cp addons.xml repository.cloudsync/addons.xml
+          cp addons.xml.md5 repository.cloudsync/addons.xml.md5
+          echo "Updated repository.cloudsync files"
+        fi
+
+    - name: Commit and push all changes
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
 
-        # Check if there are changes to commit
-        if ! git diff --quiet addons.xml addons.xml.md5 repository.cloudsync/ 2>/dev/null; then
-          echo "Repository files have been updated, committing changes..."
-          git add addons.xml addons.xml.md5 repository.cloudsync/ || true
-          git commit -m "Auto-update repository files for v${{ steps.get_version.outputs.VERSION }}" || true
-          git push origin main || true
-          echo "Repository files updated and pushed to main branch"
+        git add -A
+        if ! git diff --staged --quiet; then
+          git commit -m "Auto-update repository for v${{ steps.get_version.outputs.VERSION }}"
+          git push
+          echo "Repository updated for version ${{ steps.get_version.outputs.VERSION }}"
         else
-          echo "No repository file changes to commit"
+          echo "No changes to commit"
         fi
 
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: |
-          service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip
-          service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip.md5
-          repository.cloudsync.zip
-          repository.cloudsync.zip.md5
-          repository.cloudsync/addons.xml
-          repository.cloudsync/addons.xml.md5
-        name: CloudSync v${{ steps.get_version.outputs.VERSION }}
-        body: |
-          ## CloudSync v${{ steps.get_version.outputs.VERSION }}
-
-          ### Installation Options
-
-          **Option 1: Direct Install**
-          - Download `service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip`
-          - Install via Kodi → Install from zip file
-
-          **Option 2: Repository Install (Recommended for auto-updates)**
-          - Download `repository.cloudsync.zip`
-          - Install repository in Kodi first
-          - Then install CloudSync from repository
-
-          ### Features
-          - ✨ Simple Web Setup - Easy OAuth2 setup from any device on your network
-          - 📱 Mobile QR Setup - Quick setup using QR codes
-          - 🔄 Automatic Updates - When installed from repository
-          - ☁️ Dropbox Sync - Watched status, resume points, favorites, UserData files
-          - 🗜️ GZIP Compression - Up to 90% data transfer reduction
-
-          ### Setup
-          1. Go to addon settings
-          2. Choose "✨ Simple Web Setup (Best)"
-          3. Complete setup in your browser
-
-          **Full documentation:** [README.md](https://github.com/${{ github.repository }})
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
