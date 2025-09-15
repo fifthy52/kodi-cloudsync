@@ -899,6 +899,7 @@ class HybridSyncManager:
                 'script.kcleaner': ['settings.xml'],
                 'script.logviewer': ['settings.xml'],
                 'script.skinshortcuts': ['settings.xml'],
+                'script.skinvariables': ['settings.xml'],  # Essential for Arctic Zephyr - widget configs stored in nodes/ will be handled separately
                 'script.xbmcbackup': ['settings.xml'],
 
                 # Service addons
@@ -949,6 +950,11 @@ class HybridSyncManager:
                         self._sync_addon_config_file(addon_id, config_file)
                 else:
                     xbmc.log(f"[CloudSync] Addon {addon_id} not installed, skipping", xbmc.LOGDEBUG)
+
+            # Special handling for script.skinvariables nodes directory
+            skinvariables_path = os.path.join(addon_data_path, 'script.skinvariables')
+            if os.path.exists(skinvariables_path):
+                self._sync_skinvariables_nodes(skinvariables_path)
 
         except Exception as e:
             xbmc.log(f"[CloudSync] Error in addon_data sync: {e}", xbmc.LOGERROR)
@@ -1057,3 +1063,99 @@ class HybridSyncManager:
 
         except Exception as e:
             xbmc.log(f"[CloudSync] Error syncing {addon_id}/{config_file}: {e}", xbmc.LOGERROR)
+
+    def _sync_skinvariables_nodes(self, skinvariables_path):
+        """Sync script.skinvariables nodes directory - contains widget configs and viewtypes."""
+        try:
+            nodes_path = os.path.join(skinvariables_path, 'nodes')
+            if not os.path.exists(nodes_path):
+                xbmc.log("[CloudSync] script.skinvariables nodes directory not found", xbmc.LOGDEBUG)
+                return
+
+            xbmc.log("[CloudSync] Syncing script.skinvariables nodes directory for skin widget configs", xbmc.LOGINFO)
+
+            # Recursively sync all files in nodes directory
+            import os
+            for root, dirs, files in os.walk(nodes_path):
+                for file in files:
+                    if file.endswith(('.xml', '.json', '.txt')):  # Common skin config file types
+                        file_path = os.path.join(root, file)
+
+                        # Create relative path for remote storage
+                        rel_path = os.path.relpath(file_path, skinvariables_path)
+                        remote_path = f"addon_data/script.skinvariables/{rel_path.replace(os.sep, '/')}"
+
+                        self._sync_skinvariables_file(file_path, remote_path)
+
+        except Exception as e:
+            xbmc.log(f"[CloudSync] Error syncing script.skinvariables nodes: {e}", xbmc.LOGERROR)
+
+    def _sync_skinvariables_file(self, file_path, remote_path):
+        """Sync a single script.skinvariables file."""
+        try:
+            # Check if file has changed since last sync
+            has_changed, change_reason = self.change_tracker.has_file_changed(file_path, f"skinvariables/{remote_path}")
+            if not has_changed:
+                xbmc.log(f"[CloudSync] Skipping {remote_path} sync - no changes detected ({change_reason})", xbmc.LOGDEBUG)
+                return
+
+            # Read local file
+            with open(file_path, 'r', encoding='utf-8') as f:
+                local_content = f.read()
+
+            xbmc.log(f"[CloudSync] Processing skinvariables file {remote_path} ({len(local_content)} chars) - reason: {change_reason}", xbmc.LOGINFO)
+
+            # Check remote version for conflict resolution
+            remote_content = None
+            if self.dropbox_enabled and self.dropbox:
+                if self.use_compression:
+                    remote_content = self.dropbox.download_file_compressed(remote_path)
+                else:
+                    remote_content = self.dropbox.download_file(remote_path)
+
+            # Apply conflict resolution (prefer local for skin configs as user likely configured locally)
+            should_upload = True
+            should_download = False
+
+            if local_content and remote_content:
+                if self.conflict_resolution == "local":
+                    should_upload = True
+                elif self.conflict_resolution == "remote":
+                    should_upload = False
+                    should_download = True
+                elif self.conflict_resolution == "newer":
+                    # For skin configs, prefer local unless remote is significantly larger
+                    local_size = len(local_content)
+                    remote_size = len(remote_content)
+                    if remote_size > local_size * 1.5:  # 50% larger threshold for skin configs
+                        should_upload = False
+                        should_download = True
+
+            # Upload to Dropbox if needed
+            if should_upload and self.dropbox_enabled and self.dropbox:
+                if self.use_compression:
+                    success = self.dropbox.upload_file_compressed(remote_path, local_content)
+                else:
+                    success = self.dropbox.upload_file(remote_path, local_content)
+
+                if success:
+                    xbmc.log(f"[CloudSync] Successfully uploaded skinvariables file {remote_path}", xbmc.LOGINFO)
+                    # Mark file as synced
+                    self.change_tracker.mark_file_synced(file_path, f"skinvariables/{remote_path}")
+                else:
+                    xbmc.log(f"[CloudSync] Failed to upload skinvariables file {remote_path}", xbmc.LOGERROR)
+
+            # Download from Dropbox if needed
+            if should_download and remote_content:
+                # Create directory if it doesn't exist
+                import os
+                os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(remote_content)
+                xbmc.log(f"[CloudSync] Successfully downloaded skinvariables file {remote_path} ({len(remote_content)} chars)", xbmc.LOGINFO)
+                # Mark file as synced after download
+                self.change_tracker.mark_file_synced(file_path, f"skinvariables/{remote_path}")
+
+        except Exception as e:
+            xbmc.log(f"[CloudSync] Error syncing skinvariables file {file_path}: {e}", xbmc.LOGERROR)
