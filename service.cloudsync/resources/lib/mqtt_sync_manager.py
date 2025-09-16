@@ -79,20 +79,12 @@ class MQTTSyncManager:
                 self.log.warning("MQTT not configured - missing broker host or username")
                 return False
 
-            # Create Paho MQTT client with compatibility settings
-            try:
-                # Try newer callback API first
-                self.client = mqtt.Client(
-                    client_id=f"cloudsync_{self.device_id}",
-                    callback_api_version=mqtt.CallbackAPIVersion.VERSION1,
-                    protocol=mqtt.MQTTv311
-                )
-            except (AttributeError, TypeError):
-                # Fallback for older Paho versions
-                self.client = mqtt.Client(
-                    client_id=f"cloudsync_{self.device_id}",
-                    protocol=mqtt.MQTTv311
-                )
+            # Create Paho MQTT client with Kodi-compatible legacy API
+            self.client = mqtt.Client(
+                client_id=f"cloudsync_{self.device_id}",
+                protocol=mqtt.MQTTv311
+            )
+            self.log.debug("Created MQTT client with legacy API for Kodi compatibility")
 
             # Set credentials
             self.client.username_pw_set(username, password)
@@ -106,7 +98,7 @@ class MQTTSyncManager:
             self.client.on_disconnect = self._on_disconnect
             self.client.on_message = self._on_message
 
-            # Connect with retry logic
+            # Connect with Kodi-compatible approach (no background threading)
             self.log.info(f"Connecting to MQTT broker {broker_host}:{broker_port}")
 
             # Set additional client options for stability
@@ -116,8 +108,8 @@ class MQTTSyncManager:
             result = self.client.connect(broker_host, broker_port, 60)
 
             if result == mqtt.MQTT_ERR_SUCCESS:
-                self.client.loop_start()
-                self.log.info("MQTT client loop started")
+                self.log.info("MQTT client connected successfully (manual loop mode)")
+                # NOTE: No loop_start() - we'll use manual loop in service
                 return True
             else:
                 self.log.error(f"Failed to connect to MQTT broker, result code: {result}")
@@ -323,12 +315,23 @@ class MQTTSyncManager:
             return True
         return False
 
+    def process_network(self):
+        """Process MQTT network events - call this regularly from main service loop"""
+        if not self.client or not self.enabled:
+            return
+
+        try:
+            # Manual network loop - non-blocking with short timeout
+            self.client.loop(timeout=0.1)
+        except Exception as e:
+            self.log.error(f"Error in MQTT network processing: {e}")
+
     def stop(self):
         """Stop MQTT sync"""
         self.enabled = False
         if self.client and self.connected:
             self._publish_device_status("offline")
-            self.client.loop_stop()
+            # No loop_stop() needed - we use manual loop
             self.client.disconnect()
         self.log.info("MQTT sync stopped")
 

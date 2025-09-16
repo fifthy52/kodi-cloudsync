@@ -82,38 +82,42 @@ class CloudSyncServiceV2:
         xbmc.log("[CloudSync] CloudSync V2 service stopped", xbmc.LOGINFO)
     
     def _main_loop(self):
-        """Main service loop with periodic syncing."""
+        """Main service loop with periodic syncing and MQTT processing."""
         try:
             sync_interval = int(self.addon.getSetting('sync_interval') or '5') * 60
         except:
             sync_interval = 300  # Default 5 minutes
         last_sync = time.time()
-        
+
         while self.running and not self.monitor.abortRequested():
             try:
-                # Wait for abort or sync interval
-                if self.monitor.waitForAbort(30):  # Check every 30 seconds
+                # Process MQTT network events (if enabled)
+                if self.mqtt_manager and self.mqtt_manager.is_enabled():
+                    self.mqtt_manager.process_network()
+
+                # Wait for abort with shorter interval for MQTT responsiveness
+                if self.monitor.waitForAbort(1):  # Check every 1 second for MQTT
                     break
-                
+
                 current_time = time.time()
-                
+
                 # Check if it's time for periodic sync
                 if (current_time - last_sync) >= sync_interval:
                     xbmc.log("[CloudSync] Performing periodic sync", xbmc.LOGDEBUG)
-                    
+
                     if self.sync_manager.perform_full_sync():
                         last_sync = current_time
                         xbmc.log("[CloudSync] Periodic sync completed", xbmc.LOGDEBUG)
                     else:
                         xbmc.log("[CloudSync] Periodic sync failed", xbmc.LOGWARNING)
-                
+
                 # Update settings periodically
                 if int(current_time) % 300 == 0:  # Every 5 minutes
                     self.sync_manager._update_settings()
-                
+
             except Exception as e:
                 xbmc.log(f"[CloudSync] Error in main loop: {e}", xbmc.LOGERROR)
-                xbmc.sleep(30000)  # Wait 30 seconds after error
+                xbmc.sleep(1000)  # Wait 1 second after error (shorter for MQTT)
 
     def _handle_mqtt_watched_change(self, content):
         """Handle watched status change from MQTT"""
