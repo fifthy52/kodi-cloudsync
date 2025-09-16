@@ -249,9 +249,13 @@ class HybridSyncManager:
 
             # Download from Dropbox first (get remote changes)
             if self.dropbox_enabled:
+                xbmc.log("[CloudSync] Checking for remote changes from Dropbox", xbmc.LOGINFO)
                 remote_changes = self._download_and_merge_remote_data()
                 if remote_changes:
+                    xbmc.log("[CloudSync] Remote changes detected and merged", xbmc.LOGINFO)
                     changes_made = True
+                else:
+                    xbmc.log("[CloudSync] No remote changes detected", xbmc.LOGINFO)
 
             # Sync from Kodi to local database - track changes
             xbmc.log("[CloudSync] Starting sync_watched_status", xbmc.LOGINFO)
@@ -505,12 +509,12 @@ class HybridSyncManager:
     def _download_and_merge_remote_data(self):
         """Download remote database and merge with local data."""
         try:
-            xbmc.log("[CloudSync] Downloading and merging remote data", xbmc.LOGDEBUG)
+            xbmc.log("[CloudSync] Downloading and merging remote data", xbmc.LOGINFO)
 
             # Download remote database
             remote_content = self.dropbox.download_file("cloudsync.db")
             if not remote_content:
-                xbmc.log("[CloudSync] No remote database found", xbmc.LOGDEBUG)
+                xbmc.log("[CloudSync] No remote database found", xbmc.LOGINFO)
                 return False
 
             # Save remote database to temp file
