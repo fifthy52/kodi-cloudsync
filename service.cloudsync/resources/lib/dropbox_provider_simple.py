@@ -242,26 +242,21 @@ class DropboxProviderSimple:
             return False
     
     def download_file(self, filename):
-        """Download file from Dropbox."""
+        """Download file from Dropbox with automatic token refresh."""
         if not self.is_available():
             return None
-        
+
         try:
             headers = {
-                'Authorization': f'Bearer {self.access_token}',
                 'Dropbox-API-Arg': json.dumps({
                     'path': f"{self.sync_folder}/{filename}"
                 })
             }
-            
-            req = urllib.request.Request(
-                f"{self.CONTENT_API_URL}/files/download",
-                headers=headers
-            )
-            
-            with urllib.request.urlopen(req, timeout=30) as response:
+
+            # Use _make_api_request which has automatic token refresh
+            with self._make_api_request(f"{self.CONTENT_API_URL}/files/download", headers=headers, content_api=True) as response:
                 content = response.read()
-                
+
                 # Try to decode as text first
                 try:
                     return content.decode('utf-8')
@@ -499,24 +494,19 @@ class DropboxProviderSimple:
             return False
 
     def _download_binary_content(self, filename):
-        """Download binary content from Dropbox."""
+        """Download binary content from Dropbox with automatic token refresh."""
         if not self.is_available():
             return None
 
         try:
             headers = {
-                'Authorization': f'Bearer {self.access_token}',
                 'Dropbox-API-Arg': json.dumps({
                     'path': f"{self.sync_folder}/{filename}"
                 })
             }
 
-            req = urllib.request.Request(
-                f"{self.CONTENT_API_URL}/files/download",
-                headers=headers
-            )
-
-            with urllib.request.urlopen(req, timeout=30) as response:
+            # Use _make_api_request which has automatic token refresh
+            with self._make_api_request(f"{self.CONTENT_API_URL}/files/download", headers=headers, content_api=True) as response:
                 return response.read()
 
         except urllib.error.HTTPError as e:

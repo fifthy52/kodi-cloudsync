@@ -282,7 +282,10 @@ class HybridSyncManager:
 
             response = json.loads(xbmc.executeJSONRPC(json.dumps(request)))
 
+            movies_found = 0
             if 'result' in response and 'movies' in response['result']:
+                movies_found = len(response['result']['movies'])
+                xbmc.log(f"[CloudSync] Found {movies_found} watched movies in Kodi", xbmc.LOGINFO)
                 for movie in response['result']['movies']:
                     imdb_id = movie.get('imdbnumber')
                     if imdb_id:
@@ -297,6 +300,7 @@ class HybridSyncManager:
 
                         # Only update if values actually changed
                         if not existing or existing[0] != new_playcount or existing[1] != new_lastplayed:
+                            xbmc.log(f"[CloudSync] Updating watched status for: {movie.get('title', imdb_id)} (playcount: {existing[0] if existing else 'new'} -> {new_playcount})", xbmc.LOGINFO)
                             cursor.execute("""
                                 INSERT OR REPLACE INTO watched_movies
                                 (imdb_id, title, playcount, lastplayed, lastchange)
@@ -312,9 +316,9 @@ class HybridSyncManager:
 
             if changes_made:
                 self.db_connection.commit()
-                xbmc.log("[CloudSync] Synchronized watched status to local database", xbmc.LOGDEBUG)
+                xbmc.log(f"[CloudSync] Synchronized watched status to local database - {movies_found} movies checked", xbmc.LOGINFO)
             else:
-                xbmc.log("[CloudSync] No changes in watched status", xbmc.LOGDEBUG)
+                xbmc.log(f"[CloudSync] No changes in watched status - {movies_found} movies checked", xbmc.LOGINFO)
 
             return changes_made
 
