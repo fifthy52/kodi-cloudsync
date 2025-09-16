@@ -105,7 +105,10 @@ class MQTTSyncManager:
     """MQTT-based sync manager for CloudSync addon"""
 
     def __init__(self):
-        self.addon = xbmcaddon.Addon()
+        try:
+            self.addon = xbmcaddon.Addon('service.cloudsync')
+        except:
+            self.addon = xbmcaddon.Addon()
         self.device_id = self._get_device_id()
         self.client = None
         self.connected = False

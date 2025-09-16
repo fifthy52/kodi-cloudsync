@@ -9,16 +9,20 @@ import xbmc
 import xbmcgui
 import xbmcaddon
 
+# Get addon instance with proper ID
+try:
+    addon = xbmcaddon.Addon('service.cloudsync')
+except:
+    addon = xbmcaddon.Addon()
+
 # Add lib path
-LIB_RESOURCES_PATH = os.path.join(xbmcaddon.Addon().getAddonInfo('path'), 'resources', 'lib')
+LIB_RESOURCES_PATH = os.path.join(addon.getAddonInfo('path'), 'resources', 'lib')
 sys.path.append(LIB_RESOURCES_PATH)
 
 from mqtt_sync_manager import MQTTSyncManager
 
 def test_mqtt_connection():
     """Test MQTT connection with current settings"""
-
-    addon = xbmcaddon.Addon()
 
     # Get settings
     broker_host = addon.getSetting('mqtt_broker_host').strip()
