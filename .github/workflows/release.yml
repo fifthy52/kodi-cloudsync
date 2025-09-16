@@ -31,7 +31,7 @@ jobs:
         echo "Found version: $VERSION"
 
         # Check if ZIP already exists
-        if [ -f "service.cloudsync-${VERSION}.zip" ]; then
+        if [ -f "service.cloudsync/service.cloudsync-${VERSION}.zip" ]; then
           echo "ZIP file already exists for version $VERSION"
           echo "SKIP_BUILD=true" >> $GITHUB_OUTPUT
         else
@@ -70,6 +70,21 @@ jobs:
         rm -rf temp_build
 
         echo "Created service.cloudsync/service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip (Kodi standard structure)"
+
+    - name: Update addons.xml with current version
+      run: |
+        # Update version in addons.xml
+        python3 -c "
+import xml.etree.ElementTree as ET
+tree = ET.parse('addons.xml')
+addon = tree.find('.//addon[@id=\"service.cloudsync\"]')
+if addon is not None:
+    addon.set('version', '${{ steps.get_version.outputs.VERSION }}')
+    tree.write('addons.xml', encoding='utf-8', xml_declaration=True)
+    print('Updated addons.xml to version ${{ steps.get_version.outputs.VERSION }}')
+else:
+    print('ERROR: Could not find service.cloudsync addon in addons.xml')
+"
 
     - name: Update addons.xml.md5
       run: |
