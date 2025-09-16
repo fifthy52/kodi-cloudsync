@@ -24,6 +24,17 @@
     <setting id="sync_playlists" type="bool" label="Sync Playlists" default="false"/>
   </category>
 
+  <category label="MQTT Sync (Beta)">
+    <setting id="mqtt_enabled" type="bool" label="Enable MQTT Real-time Sync" default="false"/>
+    <setting id="mqtt_broker_host" type="text" label="MQTT Broker Host" default="" enable="eq(-1,true)"/>
+    <setting id="mqtt_broker_port" type="text" label="MQTT Broker Port" default="8883" enable="eq(-2,true)"/>
+    <setting id="mqtt_username" type="text" label="MQTT Username" default="" enable="eq(-3,true)"/>
+    <setting id="mqtt_password" type="text" label="MQTT Password" default="" option="hidden" enable="eq(-4,true)"/>
+    <setting id="mqtt_use_ssl" type="bool" label="Use SSL/TLS" default="true" enable="eq(-5,true)"/>
+    <setting id="mqtt_device_id" type="text" label="Device ID" default="" option="hidden" enable="eq(-6,true)"/>
+    <setting id="mqtt_test_connection" type="action" label="Test MQTT Connection" action="RunScript(special://home/addons/service.cloudsync/resources/lib/mqtt_test.py)" enable="eq(-7,true)"/>
+  </category>
+
   <category label="Sync Behavior">
     <setting id="auto_sync" type="bool" label="Auto Sync on Changes" default="true"/>
     <setting id="sync_interval" type="slider" label="Manual Sync Interval (minutes)" default="5" range="1,1,60"/>

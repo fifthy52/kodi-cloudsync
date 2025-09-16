@@ -49,19 +49,20 @@ class HybridSyncManager:
     def __init__(self):
         self.addon = xbmcaddon.Addon('service.cloudsync')
         self.dropbox = None
+        self.mqtt_manager = None
         self.sync_lock = threading.Lock()
         self.monitor = xbmc.Monitor()
         self.change_tracker = FileChangeTracker()
-        
+
         # Database paths
         self.local_db_path = None
         self.remote_db_path = None
         self.db_connection = None
-        
+
         # Sync state
         self.last_sync_time = 0
         self.sync_in_progress = False
-        
+
         # Settings
         self.dropbox_enabled = False
         self.sync_watched = True
@@ -379,6 +380,28 @@ class HybridSyncManager:
                             ))
                             changes_made = True
 
+                            # Publish MQTT event for real-time sync
+                            if self.mqtt_manager and self.mqtt_manager.is_enabled():
+                                movie_data = {
+                                    'imdb_id': movie_id if id_type == 'imdb' else movie.get('imdbnumber', ''),
+                                    'tmdb_id': movie_id if id_type == 'tmdb' else (movie.get('uniqueid', {}).get('tmdb', '') if movie.get('uniqueid') else ''),
+                                    'title': movie.get('title', ''),
+                                    'year': movie.get('year', 0)
+                                }
+
+                                resume_data = {}
+                                # Get resume point if available
+                                if 'resume' in movie:
+                                    resume_data = movie['resume']
+
+                                self._publish_watched_change(
+                                    content_type='movie',
+                                    movie_data=movie_data,
+                                    playcount=new_playcount,
+                                    lastplayed=new_lastplayed,
+                                    resume=resume_data
+                                )
+
             if changes_made:
                 self.db_connection.commit()
                 xbmc.log(f"[CloudSync] Synchronized watched status to local database - {movies_found} movies checked", xbmc.LOGINFO)
@@ -496,7 +519,103 @@ class HybridSyncManager:
             
         except Exception as e:
             xbmc.log(f"[CloudSync] Error updating settings: {e}", xbmc.LOGERROR)
-    
+    def set_mqtt_manager(self, mqtt_manager):
+        """Set MQTT manager for real-time sync."""
+        self.mqtt_manager = mqtt_manager
+
+    def _publish_watched_change(self, content_type, movie_data, playcount, lastplayed, resume):
+        """Publish watched status change to MQTT."""
+        if not self.mqtt_manager or not self.mqtt_manager.is_enabled():
+            return
+
+        try:
+            # Get uniqueid from movie data
+            uniqueid = {}
+            if 'imdb_id' in movie_data and movie_data['imdb_id']:
+                uniqueid['imdb'] = movie_data['imdb_id']
+            if 'tmdb_id' in movie_data and movie_data['tmdb_id']:
+                uniqueid['tmdb'] = str(movie_data['tmdb_id'])
+
+            title = movie_data.get('title', 'Unknown')
+
+            self.mqtt_manager.publish_watched_change(
+                content_type=content_type,
+                uniqueid=uniqueid,
+                title=title,
+                playcount=playcount,
+                lastplayed=lastplayed,
+                resume=resume
+            )
+
+        except Exception as e:
+            xbmc.log(f"[CloudSync] Error publishing MQTT watched change: {e}", xbmc.LOGERROR)
+
+    def apply_remote_watched_change(self, content_type, uniqueid, playcount, lastplayed, resume):
+        """Apply remote watched status change from MQTT."""
+        try:
+            if content_type == 'movie':
+                # Find movie by uniqueid
+                movieid = self.get_movieid_from_uniqueid(uniqueid)
+                if not movieid:
+                    xbmc.log(f"[CloudSync] Movie not found for uniqueid: {uniqueid}", xbmc.LOGWARNING)
+                    return False
+
+                # Update movie in Kodi
+                request = {
+                    "jsonrpc": "2.0",
+                    "method": "VideoLibrary.SetMovieDetails",
+                    "params": {
+                        "movieid": movieid,
+                        "playcount": playcount,
+                        "lastplayed": lastplayed,
+                        "resume": resume
+                    },
+                    "id": 1
+                }
+
+                response = json.loads(xbmc.executeJSONRPC(json.dumps(request)))
+
+                if 'result' in response and response['result'] == 'OK':
+                    # Update local database
+                    with self.sync_lock:
+                        cursor = self.db_connection.cursor()
+                        cursor.execute("""
+                            INSERT OR REPLACE INTO watched_status
+                            (imdb_id, playcount, lastplayed, resume_position, resume_total, last_updated)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                        """, (
+                            uniqueid.get('imdb', ''),
+                            playcount,
+                            lastplayed,
+                            resume.get('position', 0),
+                            resume.get('total', 0),
+                            int(time.time())
+                        ))
+                        self.db_connection.commit()
+
+                    return True
+                else:
+                    xbmc.log(f"[CloudSync] Failed to update movie in Kodi: {response}", xbmc.LOGWARNING)
+                    return False
+
+            # TODO: Add episode support
+            return False
+
+        except Exception as e:
+            xbmc.log(f"[CloudSync] Error applying remote watched change: {e}", xbmc.LOGERROR)
+            return False
+
+    def apply_remote_favorites_change(self, action, item_type, item_data):
+        """Apply remote favorites change from MQTT."""
+        try:
+            # TODO: Implement favorites sync via MQTT
+            xbmc.log(f"[CloudSync] MQTT favorites sync not yet implemented: {action} {item_type}", xbmc.LOGDEBUG)
+            return True
+
+        except Exception as e:
+            xbmc.log(f"[CloudSync] Error applying remote favorites change: {e}", xbmc.LOGERROR)
+            return False
+
     def cleanup(self):
         """Cleanup resources."""
         try:
