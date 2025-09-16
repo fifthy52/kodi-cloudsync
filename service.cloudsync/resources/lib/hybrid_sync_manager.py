@@ -549,6 +549,7 @@ class HybridSyncManager:
     def _merge_remote_database(self, remote_db_path):
         """Merge remote database into local database."""
         try:
+            xbmc.log(f"[CloudSync] Merging remote database from {remote_db_path}", xbmc.LOGINFO)
             remote_conn = sqlite3.connect(remote_db_path)
             remote_cursor = remote_conn.cursor()
             local_cursor = self.db_connection.cursor()
@@ -557,7 +558,10 @@ class HybridSyncManager:
             # Merge watched movies (prefer newer lastchange timestamps)
             try:
                 remote_cursor.execute("SELECT * FROM watched_movies")
-                for row in remote_cursor.fetchall():
+                remote_movies = remote_cursor.fetchall()
+                xbmc.log(f"[CloudSync] Found {len(remote_movies)} movies in remote database", xbmc.LOGINFO)
+
+                for row in remote_movies:
                     imdb_id, title, playcount, lastplayed, remote_lastchange = row
 
                     # Check if local version exists and compare timestamps
@@ -574,8 +578,10 @@ class HybridSyncManager:
                             (imdb_id, title, playcount, lastplayed, lastchange)
                             VALUES (?, ?, ?, ?, ?)
                         """, (imdb_id, title, playcount, lastplayed, remote_lastchange))
-                        xbmc.log(f"[CloudSync] Merged remote movie: {title}", xbmc.LOGDEBUG)
+                        xbmc.log(f"[CloudSync] Merged remote movie: {title} (remote timestamp {remote_lastchange} > local {local_row[0] if local_row else 'none'})", xbmc.LOGINFO)
                         changes_made = True
+                    else:
+                        xbmc.log(f"[CloudSync] Skipping {title} - local is newer or same (local: {local_row[0]}, remote: {remote_lastchange})", xbmc.LOGDEBUG)
             except sqlite3.OperationalError:
                 pass  # Table might not exist in remote DB
 
@@ -618,7 +624,7 @@ class HybridSyncManager:
                 self.db_connection.commit()
                 xbmc.log("[CloudSync] Successfully merged remote database", xbmc.LOGINFO)
             else:
-                xbmc.log("[CloudSync] No changes from remote database merge", xbmc.LOGDEBUG)
+                xbmc.log("[CloudSync] No changes from remote database merge", xbmc.LOGINFO)
 
             remote_conn.close()
             return changes_made
