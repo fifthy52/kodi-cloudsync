@@ -350,10 +350,10 @@ class HybridSyncManager:
                             id_type = 'title_year'
 
                     if movie_id:
-                        # Check if this is actually a change
+                        # Check if this is actually a change - use imdb_id column for now
                         cursor.execute("""
-                            SELECT playcount, lastplayed FROM watched_movies WHERE imdb_id = ? OR movie_id = ?
-                        """, (movie_id, movie_id))
+                            SELECT playcount, lastplayed FROM watched_movies WHERE imdb_id = ?
+                        """, (movie_id,))
                         existing = cursor.fetchone()
 
                         new_playcount = movie.get('playcount', 0)
@@ -361,13 +361,13 @@ class HybridSyncManager:
 
                         # Only update if values actually changed
                         if not existing or existing[0] != new_playcount or existing[1] != new_lastplayed:
-                            xbmc.log(f"[CloudSync] Updating watched status for: {movie.get('title', imdb_id)} (playcount: {existing[0] if existing else 'new'} -> {new_playcount})", xbmc.LOGINFO)
+                            xbmc.log(f"[CloudSync] Updating watched status for: {movie.get('title', movie_id)} ({id_type}: {movie_id}) (playcount: {existing[0] if existing else 'new'} -> {new_playcount})", xbmc.LOGINFO)
                             cursor.execute("""
                                 INSERT OR REPLACE INTO watched_movies
                                 (imdb_id, title, playcount, lastplayed, lastchange)
                                 VALUES (?, ?, ?, ?, ?)
                             """, (
-                                imdb_id,
+                                movie_id,
                                 movie.get('title', ''),
                                 new_playcount,
                                 new_lastplayed,
