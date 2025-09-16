@@ -10,95 +10,12 @@ import xbmc
 import xbmcaddon
 from typing import Dict, Any, Optional, Callable
 
-# Embedded paho-mqtt client (simplified version for Kodi)
-# Based on paho-mqtt library but simplified for our needs
-class SimpleMQTTClient:
-    """Simplified MQTT client for Kodi environment"""
-
-    def __init__(self, client_id: str = None):
-        self.client_id = client_id or f"cloudsync_{uuid.uuid4().hex[:8]}"
-        self.host = None
-        self.port = 1883
-        self.username = None
-        self.password = None
-        self.use_ssl = False
-        self.connected = False
-        self.message_callback = None
-        self.connect_callback = None
-        self.disconnect_callback = None
-        self.subscriptions = set()
-        self.log = self._get_logger()
-
-    def _get_logger(self):
-        """Get Kodi logger"""
-        class KodiLogger:
-            def debug(self, msg): xbmc.log(f"CloudSync MQTT: {msg}", xbmc.LOGDEBUG)
-            def info(self, msg): xbmc.log(f"CloudSync MQTT: {msg}", xbmc.LOGINFO)
-            def warning(self, msg): xbmc.log(f"CloudSync MQTT: {msg}", xbmc.LOGWARNING)
-            def error(self, msg): xbmc.log(f"CloudSync MQTT: {msg}", xbmc.LOGERROR)
-        return KodiLogger()
-
-    def username_pw_set(self, username: str, password: str):
-        """Set username and password"""
-        self.username = username
-        self.password = password
-
-    def tls_set(self):
-        """Enable TLS/SSL"""
-        self.use_ssl = True
-
-    def on_message(self, callback: Callable):
-        """Set message callback"""
-        self.message_callback = callback
-
-    def on_connect(self, callback: Callable):
-        """Set connect callback"""
-        self.connect_callback = callback
-
-    def on_disconnect(self, callback: Callable):
-        """Set disconnect callback"""
-        self.disconnect_callback = callback
-
-    def connect(self, host: str, port: int = 1883, keepalive: int = 60):
-        """Connect to MQTT broker"""
-        self.host = host
-        self.port = port
-        self.log.info(f"Connecting to MQTT broker {host}:{port}")
-
-        # For now, simulate connection
-        # In real implementation, would use socket connection
-        self.connected = True
-        if self.connect_callback:
-            self.connect_callback(self, None, None, 0)
-
-        return True
-
-    def disconnect(self):
-        """Disconnect from broker"""
-        self.connected = False
-        if self.disconnect_callback:
-            self.disconnect_callback(self, None, 0)
-
-    def subscribe(self, topic: str, qos: int = 0):
-        """Subscribe to topic"""
-        if self.connected:
-            self.subscriptions.add(topic)
-            self.log.debug(f"Subscribed to topic: {topic}")
-
-    def publish(self, topic: str, payload: str, qos: int = 0, retain: bool = False):
-        """Publish message to topic"""
-        if self.connected:
-            self.log.debug(f"Publishing to {topic}: {payload}")
-            return True
-        return False
-
-    def loop_start(self):
-        """Start network loop in background"""
-        pass
-
-    def loop_stop(self):
-        """Stop network loop"""
-        pass
+# Import paho MQTT client
+try:
+    import paho.mqtt.client as mqtt
+    MQTT_AVAILABLE = True
+except ImportError:
+    MQTT_AVAILABLE = False
 
 
 class MQTTSyncManager:
@@ -148,6 +65,10 @@ class MQTTSyncManager:
     def initialize(self) -> bool:
         """Initialize MQTT client with saved settings"""
         try:
+            if not MQTT_AVAILABLE:
+                self.log.error("Paho MQTT library not available")
+                return False
+
             broker_host = self.addon.getSetting('mqtt_broker_host')
             broker_port = int(self.addon.getSetting('mqtt_broker_port') or '8883')
             username = self.addon.getSetting('mqtt_username')
@@ -158,21 +79,35 @@ class MQTTSyncManager:
                 self.log.warning("MQTT not configured - missing broker host or username")
                 return False
 
-            self.client = SimpleMQTTClient(f"cloudsync_{self.device_id}")
+            # Create Paho MQTT client
+            self.client = mqtt.Client(
+                client_id=f"cloudsync_{self.device_id}",
+                callback_api_version=mqtt.CallbackAPIVersion.VERSION1,
+                protocol=mqtt.MQTTv311
+            )
+
+            # Set credentials
             self.client.username_pw_set(username, password)
 
+            # Set SSL/TLS
             if use_ssl:
                 self.client.tls_set()
 
             # Set callbacks
-            self.client.on_connect(self._on_connect)
-            self.client.on_disconnect(self._on_disconnect)
-            self.client.on_message(self._on_message)
+            self.client.on_connect = self._on_connect
+            self.client.on_disconnect = self._on_disconnect
+            self.client.on_message = self._on_message
 
             # Connect
-            if self.client.connect(broker_host, broker_port):
+            self.log.info(f"Connecting to MQTT broker {broker_host}:{broker_port}")
+            result = self.client.connect(broker_host, broker_port, 60)
+
+            if result == mqtt.MQTT_ERR_SUCCESS:
                 self.client.loop_start()
                 return True
+            else:
+                self.log.error(f"Failed to connect to MQTT broker: {result}")
+                return False
 
         except Exception as e:
             self.log.error(f"Failed to initialize MQTT: {e}")
@@ -181,24 +116,29 @@ class MQTTSyncManager:
 
     def _on_connect(self, client, userdata, flags, rc):
         """Called when client connects to broker"""
-        if rc == 0:
+        if rc == mqtt.MQTT_ERR_SUCCESS:
             self.connected = True
             self.log.info("Connected to MQTT broker")
             self._subscribe_to_topics()
             self._publish_device_status("online")
         else:
-            self.log.error(f"Failed to connect to MQTT broker: {rc}")
+            self.connected = False
+            self.log.error(f"Failed to connect to MQTT broker, return code {rc}")
 
     def _on_disconnect(self, client, userdata, rc):
         """Called when client disconnects from broker"""
         self.connected = False
-        self.log.info("Disconnected from MQTT broker")
+        if rc != mqtt.MQTT_ERR_SUCCESS:
+            self.log.warning(f"Unexpected disconnection from MQTT broker, return code {rc}")
+        else:
+            self.log.info("Disconnected from MQTT broker")
 
     def _on_message(self, client, userdata, message):
         """Called when message received"""
         try:
             topic = message.topic
-            payload = json.loads(message.payload.decode('utf-8'))
+            payload_str = message.payload.decode('utf-8')
+            payload = json.loads(payload_str)
 
             # Ignore messages from this device
             if payload.get('device_id') == self.device_id:
