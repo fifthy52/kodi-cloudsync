@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <addons>
-    <addon id="service.cloudsync" name="CloudSync" version="4.4.2" provider-name="CloudSync">
+    <addon id="service.cloudsync" name="CloudSync" version="4.4.3" provider-name="CloudSync">
         <requires>
             <import addon="xbmc.python" version="3.0.0"/>
         </requires>
@@ -16,6 +16,7 @@
             <source>https://github.com/fifthy52/kodi-cloudsync</source>
             <email></email>
             <news>
+v4.4.3 - Fixed MQTT connection stability and error handling
 v4.4.2 - Implemented real MQTT client using Eclipse Paho library
 v4.4.1 - Fixed addon ID initialization in MQTT scripts
 v4.4.0 - Added MQTT real-time sync support with HiveMQ Cloud integration

@@ -79,12 +79,20 @@ class MQTTSyncManager:
                 self.log.warning("MQTT not configured - missing broker host or username")
                 return False
 
-            # Create Paho MQTT client
-            self.client = mqtt.Client(
-                client_id=f"cloudsync_{self.device_id}",
-                callback_api_version=mqtt.CallbackAPIVersion.VERSION1,
-                protocol=mqtt.MQTTv311
-            )
+            # Create Paho MQTT client with compatibility settings
+            try:
+                # Try newer callback API first
+                self.client = mqtt.Client(
+                    client_id=f"cloudsync_{self.device_id}",
+                    callback_api_version=mqtt.CallbackAPIVersion.VERSION1,
+                    protocol=mqtt.MQTTv311
+                )
+            except (AttributeError, TypeError):
+                # Fallback for older Paho versions
+                self.client = mqtt.Client(
+                    client_id=f"cloudsync_{self.device_id}",
+                    protocol=mqtt.MQTTv311
+                )
 
             # Set credentials
             self.client.username_pw_set(username, password)
@@ -98,15 +106,21 @@ class MQTTSyncManager:
             self.client.on_disconnect = self._on_disconnect
             self.client.on_message = self._on_message
 
-            # Connect
+            # Connect with retry logic
             self.log.info(f"Connecting to MQTT broker {broker_host}:{broker_port}")
+
+            # Set additional client options for stability
+            self.client.max_inflight_messages_set(20)
+            self.client.max_queued_messages_set(0)
+
             result = self.client.connect(broker_host, broker_port, 60)
 
             if result == mqtt.MQTT_ERR_SUCCESS:
                 self.client.loop_start()
+                self.log.info("MQTT client loop started")
                 return True
             else:
-                self.log.error(f"Failed to connect to MQTT broker: {result}")
+                self.log.error(f"Failed to connect to MQTT broker, result code: {result}")
                 return False
 
         except Exception as e:
@@ -116,11 +130,14 @@ class MQTTSyncManager:
 
     def _on_connect(self, client, userdata, flags, rc):
         """Called when client connects to broker"""
-        if rc == mqtt.MQTT_ERR_SUCCESS:
+        if rc == mqtt.MQTT_ERR_SUCCESS or rc == 0:  # Both success codes
             self.connected = True
-            self.log.info("Connected to MQTT broker")
-            self._subscribe_to_topics()
-            self._publish_device_status("online")
+            self.log.info(f"Connected to MQTT broker successfully (rc={rc})")
+            try:
+                self._subscribe_to_topics()
+                self._publish_device_status("online")
+            except Exception as e:
+                self.log.error(f"Error in post-connection setup: {e}")
         else:
             self.connected = False
             self.log.error(f"Failed to connect to MQTT broker, return code {rc}")
@@ -130,6 +147,7 @@ class MQTTSyncManager:
         self.connected = False
         if rc != mqtt.MQTT_ERR_SUCCESS:
             self.log.warning(f"Unexpected disconnection from MQTT broker, return code {rc}")
+            # Don't try to reconnect automatically for now - let Kodi handle it
         else:
             self.log.info("Disconnected from MQTT broker")
 
