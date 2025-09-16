@@ -11,7 +11,41 @@ import xbmc
 
 class HybridSyncManager:
     """Hybrid sync manager combining WatchedList approach with resume points."""
-    
+
+    def get_movieid_from_uniqueid(self, uniqueid_dict):
+        """
+        Return movieid from searching for matching at least one of the uniqueid keys in the supplied dict
+        Based on WatchedSync addon approach
+
+        :param uniqueid_dict: Dictionary with uniqueid mappings (imdb, tmdb, etc.)
+        :return: movieid (int) or None
+        """
+        if not uniqueid_dict:
+            return None
+
+        request = {
+            "jsonrpc": "2.0",
+            "method": "VideoLibrary.GetMovies",
+            "params": {
+                "properties": ["uniqueid"]
+            },
+            "id": 1
+        }
+
+        response = json.loads(xbmc.executeJSONRPC(json.dumps(request)))
+
+        if 'result' in response and 'movies' in response['result']:
+            for movie in response['result']['movies']:
+                if 'uniqueid' not in movie:
+                    continue
+
+                # Check if any uniqueid matches
+                for key, value in uniqueid_dict.items():
+                    if value and movie['uniqueid'].get(key) == value:
+                        return movie['movieid']
+
+        return None
+
     def __init__(self):
         self.addon = xbmcaddon.Addon('service.cloudsync')
         self.dropbox = None
@@ -274,7 +308,7 @@ class HybridSyncManager:
                 "jsonrpc": "2.0",
                 "method": "VideoLibrary.GetMovies",
                 "params": {
-                    "properties": ["playcount", "lastplayed", "file", "imdbnumber", "title"],
+                    "properties": ["playcount", "lastplayed", "file", "imdbnumber", "title", "year", "uniqueid"],
                     "filter": {"field": "playcount", "operator": "greaterthan", "value": "0"}
                 },
                 "id": 1
@@ -287,12 +321,39 @@ class HybridSyncManager:
                 movies_found = len(response['result']['movies'])
                 xbmc.log(f"[CloudSync] Found {movies_found} watched movies in Kodi", xbmc.LOGINFO)
                 for movie in response['result']['movies']:
-                    imdb_id = movie.get('imdbnumber')
-                    if imdb_id:
+                    # Try to get a reliable identifier
+                    movie_id = None
+                    id_type = None
+
+                    # Priority 1: IMDb ID
+                    if movie.get('imdbnumber'):
+                        movie_id = movie.get('imdbnumber')
+                        id_type = 'imdb'
+                    # Priority 2: TMDB from uniqueid
+                    elif movie.get('uniqueid') and movie['uniqueid'].get('tmdb'):
+                        movie_id = movie['uniqueid']['tmdb']
+                        id_type = 'tmdb'
+                    # Priority 3: Any other uniqueid
+                    elif movie.get('uniqueid') and movie['uniqueid']:
+                        # Get the first available ID
+                        for uid_type, uid_value in movie['uniqueid'].items():
+                            if uid_value:
+                                movie_id = uid_value
+                                id_type = uid_type
+                                break
+                    # Priority 4: Fallback to title+year
+                    else:
+                        title = movie.get('title', '')
+                        year = movie.get('year', 0)
+                        if title and year:
+                            movie_id = f"{title}_{year}"
+                            id_type = 'title_year'
+
+                    if movie_id:
                         # Check if this is actually a change
                         cursor.execute("""
-                            SELECT playcount, lastplayed FROM watched_movies WHERE imdb_id = ?
-                        """, (imdb_id,))
+                            SELECT playcount, lastplayed FROM watched_movies WHERE imdb_id = ? OR movie_id = ?
+                        """, (movie_id, movie_id))
                         existing = cursor.fetchone()
 
                         new_playcount = movie.get('playcount', 0)
