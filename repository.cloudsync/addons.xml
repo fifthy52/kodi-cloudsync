@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<addons>
+    <addon id="repository.cloudsync" name="CloudSync Repository" version="2.0.0" provider-name="CloudSync">
+        <extension point="xbmc.addon.repository" name="CloudSync Repository">
+            <dir>
+                <info compressed="false">https://raw.githubusercontent.com/fifthy52/kodi-cloudsync/main/addons.xml</info>
+                <checksum>https://raw.githubusercontent.com/fifthy52/kodi-cloudsync/main/addons.xml.md5</checksum>
+                <datadir zip="true">https://raw.githubusercontent.com/fifthy52/kodi-cloudsync/main/</datadir>
+            </dir>
+        </extension>
+        <extension point="xbmc.addon.metadata">
+            <summary>CloudSync Repository</summary>
+            <description>Official repository for CloudSync Kodi addon with real-time MQTT synchronization</description>
+            <disclaimer></disclaimer>
+            <platform>all</platform>
+            <assets>
+                <icon>icon.png</icon>
+                <fanart>fanart.jpg</fanart>
+            </assets>
+        </extension>
+    </addon>
+    <addon id="service.cloudsync" name="CloudSync" version="2.0.0" provider-name="CloudSync">
+        <requires>
+            <import addon="xbmc.python" version="3.0.0"/>
+        </requires>
+        <extension point="xbmc.service" library="service.py" start="startup" />
+        <extension point="xbmc.addon.metadata">
+            <summary>CloudSync - Real-time MQTT Sync</summary>
+            <description>CloudSync delivers instant synchronization of watched status, resume points, and favorites across multiple Kodi devices using lightweight MQTT messaging. Features real-time updates, HiveMQ Cloud integration, and zero-conflict architecture without databases or file management.</description>
+            <platform>all</platform>
+            <language>en</language>
+            <license>MIT</license>
+            <forum>https://github.com/fifthy52/kodi-cloudsync/discussions</forum>
+            <website>https://github.com/fifthy52/kodi-cloudsync</website>
+            <source>https://github.com/fifthy52/kodi-cloudsync</source>
+            <news>
+v2.0.0 - CloudSync with MQTT-first architecture
+- Real-time watched status sync
+- Resume points synchronization
+- Favorites sync via Kodi API
+- HiveMQ Cloud support
+- No databases, pure event messaging
+            </news>
+        </extension>
+    </addon>
+</addons>
