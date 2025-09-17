@@ -220,13 +220,32 @@ class KodiRPC:
         result = self._execute_rpc("Favourites.GetFavourites")
         return result.get("favourites", []) if result else []
 
+    def debug_favourites_api(self):
+        """Debug different Favourites API calls to find all available data"""
+        self._log("=== FAVOURITES API DEBUG TEST ===", xbmc.LOGINFO)
+
+        # Test 1: Basic call
+        self._log("1. Basic GetFavourites:", xbmc.LOGINFO)
+        result1 = self._execute_rpc("Favourites.GetFavourites")
+        self._log(f"Basic result: {result1}", xbmc.LOGINFO)
+
+        # Test 2: With various properties
+        properties_tests = [
+            ["title", "path", "thumbnail"],
+            ["title", "path", "thumbnail", "window", "windowparameter"],
+            ["title", "type", "path", "thumbnail", "window", "windowparameter"],
+        ]
+
+        for i, props in enumerate(properties_tests, 2):
+            self._log(f"{i}. GetFavourites with properties {props}:", xbmc.LOGINFO)
+            params = {"properties": props}
+            result = self._execute_rpc("Favourites.GetFavourites", params)
+            self._log(f"Properties result: {result}", xbmc.LOGINFO)
+
+        self._log("=== END FAVOURITES API DEBUG ===", xbmc.LOGINFO)
+
     def add_favourite(self, title: str, type_name: str, path: str, thumbnail: str = "") -> bool:
         """Add item to favorites"""
-        # Validate path to prevent "Invalid protocol" errors
-        if not path or not path.strip():
-            self._log(f"Cannot add favorite with empty path: {title}", xbmc.LOGWARNING)
-            return False
-
         params = {
             "title": title,
             "type": type_name,

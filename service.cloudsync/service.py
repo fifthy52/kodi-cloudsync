@@ -305,6 +305,11 @@ class CloudSyncServiceV2:
                 if api_favorites is None:
                     api_favorites = []
 
+                # DEBUG: Test different API calls (run once)
+                if not hasattr(self, '_api_debug_done'):
+                    self.kodi_rpc.debug_favourites_api()
+                    self._api_debug_done = True
+
                 # Create current favorites by pairing API triggers with XML content
                 current_favorites = self._pair_api_with_xml(api_favorites)
 
