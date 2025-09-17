@@ -24,7 +24,7 @@ class CloudSyncServiceV2:
     """CloudSync V2 - Real-time MQTT sync service"""
 
     def __init__(self):
-        self.addon = xbmcaddon.Addon('service.cloudsync_v2')
+        self.addon = xbmcaddon.Addon('service.cloudsync')
         self.mqtt = None
         self.kodi_rpc = KodiRPC()
         self.kodi_monitor = None

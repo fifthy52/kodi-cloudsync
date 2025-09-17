@@ -12,7 +12,7 @@
     <setting id="mqtt_username" type="text" label="MQTT Username" default=""/>
     <setting id="mqtt_password" type="text" label="MQTT Password" default="" option="hidden"/>
     <setting id="mqtt_use_ssl" type="bool" label="Use SSL/TLS" default="true"/>
-    <setting id="mqtt_test_connection" type="action" label="Test MQTT Connection" action="RunScript(special://home/addons/service.cloudsync_v2/resources/lib/mqtt_test.py)"/>
+    <setting id="mqtt_test_connection" type="action" label="Test MQTT Connection" action="RunScript(special://home/addons/service.cloudsync/resources/lib/mqtt_test.py)"/>
   </category>
 
   <category label="Sync Options">

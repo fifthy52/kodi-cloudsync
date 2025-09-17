@@ -43,7 +43,7 @@ class CloudSyncMQTT:
     def _get_addon(self):
         """Get addon instance with error handling"""
         try:
-            return xbmcaddon.Addon('service.cloudsync_v2')
+            return xbmcaddon.Addon('service.cloudsync')
         except:
             return xbmcaddon.Addon()
 

@@ -29,7 +29,7 @@ class CloudSyncMQTTTest:
     """MQTT connection test for CloudSync V2"""
 
     def __init__(self):
-        self.addon = xbmcaddon.Addon('service.cloudsync_v2')
+        self.addon = xbmcaddon.Addon('service.cloudsync')
         self.client = None
         self.connected = False
         self.test_results = []
