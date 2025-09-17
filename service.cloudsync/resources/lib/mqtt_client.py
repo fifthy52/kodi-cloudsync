@@ -97,8 +97,9 @@ class CloudSyncMQTT:
             return False
 
         try:
-            # Create MQTT client with legacy API for Kodi compatibility
+            # Create MQTT client with modern callback API
             self.client = mqtt.Client(
+                mqtt.CallbackAPIVersion.VERSION1,
                 client_id=f"{self.device_id}_session_{uuid.uuid4().hex[:6]}",
                 protocol=mqtt.MQTTv311
             )

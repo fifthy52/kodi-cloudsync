@@ -96,9 +96,9 @@ class CloudSyncMQTTTest:
             password = self.addon.getSetting('mqtt_password').strip()
             use_ssl = self.addon.getSettingBool('mqtt_use_ssl')
 
-            # Create client
+            # Create client with modern callback API
             device_id = f"cloudsync_test_{int(time.time())}"
-            self.client = mqtt.Client(client_id=device_id, protocol=mqtt.MQTTv311)
+            self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, client_id=device_id, protocol=mqtt.MQTTv311)
 
             # Set credentials and SSL
             self.client.username_pw_set(username, password)
@@ -127,9 +127,12 @@ class CloudSyncMQTTTest:
                 if self.connected:
                     self.test_publish()
 
+                # Store connection success before disconnect
+                connection_success = self.connected
+
                 # Disconnect
                 self.client.disconnect()
-                return self.connected
+                return connection_success
 
             else:
                 self.log(f"✗ Connection failed with result code: {result}", xbmc.LOGERROR)
