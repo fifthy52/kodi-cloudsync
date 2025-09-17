@@ -106,6 +106,17 @@ jobs:
           echo "No changes to commit"
         fi
 
+    - name: Create repository ZIP
+      if: steps.get_version.outputs.SKIP_BUILD == 'false'
+      run: |
+        # Create repository ZIP
+        if [ -d "repository.cloudsync" ]; then
+          cd repository.cloudsync
+          zip -r ../repository.cloudsync.zip *
+          cd ..
+          echo "Created repository.cloudsync.zip"
+        fi
+
     - name: Create GitHub Release
       if: steps.get_version.outputs.SKIP_BUILD == 'false'
       run: |
@@ -115,6 +126,7 @@ jobs:
         else
           gh release create "v${{ steps.get_version.outputs.VERSION }}" \
             service.cloudsync/service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip \
+            repository.cloudsync.zip \
             --title "CloudSync v${{ steps.get_version.outputs.VERSION }}" \
             --notes "CloudSync v${{ steps.get_version.outputs.VERSION }} - New version with latest improvements and fixes."
           echo "Created release v${{ steps.get_version.outputs.VERSION }}"
