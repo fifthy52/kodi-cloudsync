@@ -364,6 +364,11 @@ class CloudSyncServiceV2:
             path = favorite.get('path', '')
             fav_type = favorite.get('type', 'unknown')
 
+            # Skip favorites with invalid paths to prevent corruption
+            if not path or not self._is_valid_favorite_path(path):
+                self._log(f"Skipping {action} for favorite with invalid path: {title} - {path}", xbmc.LOGWARNING)
+                return
+
             self._log(f"Favorites {action}: {title} ({fav_type})", xbmc.LOGINFO)
 
             topic = f"cloudsync/favorites/{action}"

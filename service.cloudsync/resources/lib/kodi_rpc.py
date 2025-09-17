@@ -222,6 +222,11 @@ class KodiRPC:
 
     def add_favourite(self, title: str, type_name: str, path: str, thumbnail: str = "") -> bool:
         """Add item to favorites"""
+        # Validate path to prevent "Invalid protocol" errors
+        if not path or not path.strip():
+            self._log(f"Cannot add favorite with empty path: {title}", xbmc.LOGWARNING)
+            return False
+
         params = {
             "title": title,
             "type": type_name,
