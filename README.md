@@ -1,18 +1,16 @@
 # CloudSync for Kodi
 
-A comprehensive Kodi addon for synchronizing watched status, resume points, favorites, and configuration files across multiple devices using Dropbox cloud storage.
+Real-time synchronization of watched status, resume points, and favorites across multiple Kodi devices using MQTT messaging. Instant cross-device sync without databases or file conflicts.
 
 ## ✨ Features
 
-### Currently Working
-- **Watched Status Sync** - Movies and TV episodes playcount and last watched dates
-- **Resume Points Sync** - Continue watching from where you left off
-- **Favorites Sync** - Synchronize favorites across devices with smart conflict resolution
-- **UserData Files Sync** - sources.xml, passwords.xml, and other configuration files
-- **GZIP Compression** - Up to 90% data transfer reduction
-- **Intelligent Change Detection** - SHA256-based file tracking avoids unnecessary syncs
-- **OAuth2 Integration** - Modern secure Dropbox authentication with automatic token refresh
-- **Web-based Setup** - Easy setup from any device on your network (no more typing long codes!)
+- **Real-time Watched Status Sync** - Instant movie/episode playcount updates across devices
+- **Resume Points Sync** - Continue watching from exact position on any device
+- **Favorites Sync** - Real-time favorites synchronization via Kodi API
+- **MQTT Messaging** - Lightweight, instant communication between devices
+- **HiveMQ Cloud Integration** - Secure SSL/TLS cloud messaging
+- **Zero-Conflict Architecture** - No databases, no file conflicts
+- **Event-Driven Design** - React instantly to Kodi library changes
 
 ## 🚀 Installation
 
@@ -31,54 +29,48 @@ A comprehensive Kodi addon for synchronizing watched status, resume points, favo
 
 ## ⚙️ Configuration
 
-### 🌟 Simple Web Setup (Only Method)
+### MQTT Setup
 1. Go to CloudSync settings in Kodi
-2. Click "✨ Simple Web Setup"
-3. Open the displayed URL in any browser on your network
-4. Complete Dropbox authorization in browser
-5. Addon automatically configures itself - done!
+2. Configure MQTT broker settings:
+   - **Broker Host**: Your MQTT broker (e.g., HiveMQ Cloud)
+   - **Port**: 8883 (SSL/TLS) or 1883 (plain)
+   - **Username/Password**: Your MQTT credentials
+   - **Device Name**: Unique name for this Kodi device
+3. Enable CloudSync and restart Kodi
 
-### Sync Options
-- **Sync Watched Status** - Movie/episode watch status
-- **Sync Resume Points** - Video playback positions
-- **Sync Favorites** - Favorites menu items with automatic skin refresh
-- **Sync UserData Files** - Kodi configuration files
-- **Use GZIP Compression** - Reduce data transfer significantly
-- **Conflict Resolution** - Choose how to handle conflicts between devices
+### Sync Features
+- **Watched Status** - Real-time movie/episode watch status
+- **Resume Points** - Video playback positions
+- **Favorites** - Favorites menu items (polled every 30 seconds)
 
-## 📱 Web Setup Interface
+## 🏗️ Architecture
 
-CloudSync features a revolutionary web-based setup that eliminates the need to type long authorization codes in Kodi:
+CloudSync V2 uses a pure MQTT-first architecture:
 
-- **Network Accessible** - Use any device on your network
-- **Mobile Friendly** - Perfect for phones and tablets
-- **Step-by-Step Guide** - Clear 4-step process
-- **Automatic Completion** - No manual code entry required
+- **Event-Driven**: Responds to Kodi notifications instantly
+- **Lightweight**: MQTT messages for minimal network overhead
+- **Reliable**: HiveMQ Cloud with SSL/TLS encryption
+- **Scalable**: Add unlimited Kodi devices to sync network
 
 ## 🔄 Version History
 
-- **v4.2.0** - Simplified settings UI, automated repository system, documented favorites limitations
-- **v4.1.2** - Fixed dialog overlaps, improved web setup UX
-- **v4.1.0** - Added Simple Web Setup with paste interface
-- **v4.0.0** - Revolutionary web interface for OAuth2 setup
-- **v2.7.0** - Real scannable QR codes for mobile setup
+- **v2.0.0** - Complete MQTT-first rebuild, real-time sync, favorites support
+- **v1.x.x** - Legacy Dropbox-based sync (deprecated)
 
 ## 🛠️ Development
 
 ### Project Structure
 ```
 service.cloudsync/
-├── addon.xml                          # Addon metadata
-├── service_v2.py                      # Main service entry point
+├── addon.xml                    # Addon metadata
+├── service.py                   # Main service entry point
 ├── resources/
-│   ├── settings.xml                   # Settings UI
-│   ├── language/                      # Localization
-│   └── lib/                          # Python modules
-│       ├── hybrid_sync_manager.py     # Main sync logic
-│       ├── dropbox_provider_simple.py # Dropbox API wrapper
-│       ├── simple_web_setup.py        # Web setup server
-│       ├── oauth_server.py            # OAuth2 automation
-│       └── ...
+│   ├── settings.xml             # Settings UI
+│   └── lib/                     # Python modules
+│       ├── mqtt_client.py       # MQTT wrapper with Paho
+│       ├── kodi_monitor.py      # Kodi event monitoring
+│       ├── kodi_rpc.py          # JSON-RPC API wrapper
+│       └── paho/               # Embedded Paho MQTT library
 ```
 
 ### Building from Source
@@ -102,8 +94,8 @@ MIT License - See LICENSE file for details
 
 ## 🙏 Credits
 
-Inspired by professional Kodi addon development practices and built with modern OAuth2 security standards.
+Built with Eclipse Paho MQTT library and HiveMQ Cloud for reliable real-time messaging.
 
 ---
 
-**Need help?** Open an [issue](https://github.com/fifthy52/kodi-cloudsync/issues) or check the [wiki](https://github.com/fifthy52/kodi-cloudsync/wiki) for troubleshooting guides.
+**Need help?** Open an [issue](https://github.com/fifthy52/kodi-cloudsync/issues) or check the [discussions](https://github.com/fifthy52/kodi-cloudsync/discussions) for support.

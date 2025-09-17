@@ -6,7 +6,7 @@
   <extension point="xbmc.service" library="service.py" start="startup" />
   <extension point="xbmc.addon.metadata">
     <summary>CloudSync - Real-time MQTT Sync</summary>
-    <description>Real-time synchronization of watched status, resume points, and favorites across multiple Kodi devices using MQTT messaging. Instant cross-device sync without databases or file conflicts.</description>
+    <description>CloudSync delivers instant synchronization of watched status, resume points, and favorites across multiple Kodi devices using lightweight MQTT messaging. Features real-time updates, HiveMQ Cloud integration, and zero-conflict architecture without databases or file management.</description>
     <platform>all</platform>
     <language>en</language>
     <license>MIT</license>
