@@ -1,148 +1,247 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
+"""
+CloudSync V2 - MQTT Connection Test
+Test MQTT connectivity for CloudSync V2 addon
+"""
 
 import sys
 import os
-import json
 import time
+import json
 import xbmc
-import xbmcgui
 import xbmcaddon
+import xbmcgui
 
-# Get addon instance with proper ID
+# Add embedded Paho MQTT path
+addon_dir = os.path.dirname(os.path.dirname(__file__))
+sys.path.insert(0, os.path.join(addon_dir, 'lib'))
+
 try:
-    addon = xbmcaddon.Addon('service.cloudsync')
-except:
-    addon = xbmcaddon.Addon()
+    import paho.mqtt.client as mqtt
+    MQTT_AVAILABLE = True
+except ImportError:
+    MQTT_AVAILABLE = False
 
-# Add lib path
-LIB_RESOURCES_PATH = os.path.join(addon.getAddonInfo('path'), 'resources', 'lib')
-sys.path.append(LIB_RESOURCES_PATH)
 
-from mqtt_sync_manager import MQTTSyncManager
+class CloudSyncMQTTTest:
+    """MQTT connection test for CloudSync V2"""
 
-def test_mqtt_connection():
-    """Test MQTT connection with current settings"""
+    def __init__(self):
+        self.addon = xbmcaddon.Addon('service.cloudsync_v2')
+        self.client = None
+        self.connected = False
+        self.test_results = []
 
-    # Get settings
-    broker_host = addon.getSetting('mqtt_broker_host').strip()
-    broker_port = addon.getSetting('mqtt_broker_port').strip()
-    username = addon.getSetting('mqtt_username').strip()
-    password = addon.getSetting('mqtt_password').strip()
-    use_ssl = addon.getSetting('mqtt_use_ssl') == 'true'
+    def log(self, message, level=xbmc.LOGINFO):
+        """Log message"""
+        xbmc.log(f"CloudSync V2 MQTT Test: {message}", level)
+        self.test_results.append(message)
 
-    # Validate settings
-    if not broker_host:
-        xbmcgui.Dialog().ok("MQTT Test", "Please configure MQTT Broker Host first")
-        return
+    def test_mqtt_availability(self):
+        """Test if MQTT library is available"""
+        self.log("Testing MQTT library availability...")
 
-    if not username:
-        xbmcgui.Dialog().ok("MQTT Test", "Please configure MQTT Username first")
-        return
+        if MQTT_AVAILABLE:
+            self.log("✓ Paho MQTT library is available")
+            return True
+        else:
+            self.log("✗ Paho MQTT library is NOT available", xbmc.LOGERROR)
+            return False
 
-    if not password:
-        xbmcgui.Dialog().ok("MQTT Test", "Please configure MQTT Password first")
-        return
+    def test_configuration(self):
+        """Test MQTT configuration"""
+        self.log("Testing MQTT configuration...")
 
-    try:
-        broker_port = int(broker_port) if broker_port else (8883 if use_ssl else 1883)
-    except ValueError:
-        broker_port = 8883 if use_ssl else 1883
+        try:
+            broker_host = self.addon.getSetting('mqtt_broker_host').strip()
+            broker_port = self.addon.getSetting('mqtt_broker_port').strip()
+            username = self.addon.getSetting('mqtt_username').strip()
+            password = self.addon.getSetting('mqtt_password').strip()
+            use_ssl = self.addon.getSettingBool('mqtt_use_ssl')
 
-    # Show progress dialog
-    progress = xbmcgui.DialogProgress()
-    progress.create("MQTT Test", "Testing MQTT connection...")
-    progress.update(10, "Initializing MQTT client...")
+            if not broker_host:
+                self.log("✗ MQTT broker host not configured")
+                return False
+            if not username:
+                self.log("✗ MQTT username not configured")
+                return False
+            if not password:
+                self.log("✗ MQTT password not configured")
+                return False
 
-    try:
-        # Create MQTT manager
-        mqtt_manager = MQTTSyncManager()
+            self.log(f"✓ Broker: {broker_host}:{broker_port}")
+            self.log(f"✓ Username: {username}")
+            self.log(f"✓ SSL/TLS: {use_ssl}")
 
-        progress.update(30, "Configuring connection...")
+            return True
 
-        # Configure with current settings
-        mqtt_manager.configure(broker_host, broker_port, username, password, use_ssl)
+        except Exception as e:
+            self.log(f"✗ Configuration error: {e}", xbmc.LOGERROR)
+            return False
 
-        progress.update(50, "Connecting to broker...")
+    def test_connection(self):
+        """Test MQTT connection"""
+        if not MQTT_AVAILABLE:
+            return False
 
-        # Try to connect
-        if mqtt_manager.initialize():
-            progress.update(80, "Testing publish/subscribe...")
+        self.log("Testing MQTT connection...")
 
-            # Test basic functionality
-            test_message_received = [False]
+        try:
+            # Get settings
+            broker_host = self.addon.getSetting('mqtt_broker_host').strip()
+            broker_port = int(self.addon.getSetting('mqtt_broker_port') or '8883')
+            username = self.addon.getSetting('mqtt_username').strip()
+            password = self.addon.getSetting('mqtt_password').strip()
+            use_ssl = self.addon.getSettingBool('mqtt_use_ssl')
 
-            def test_message_handler(content):
-                test_message_received[0] = True
-                xbmc.log("CloudSync MQTT Test: Received test message", xbmc.LOGINFO)
+            # Create client
+            device_id = f"cloudsync_test_{int(time.time())}"
+            self.client = mqtt.Client(client_id=device_id, protocol=mqtt.MQTTv311)
 
-            mqtt_manager.set_watched_handler(test_message_handler)
+            # Set credentials and SSL
+            self.client.username_pw_set(username, password)
+            if use_ssl:
+                self.client.tls_set()
 
-            # Wait a bit for connection
-            time.sleep(2)
+            # Set callbacks
+            self.client.on_connect = self._on_connect
+            self.client.on_disconnect = self._on_disconnect
+            self.client.on_message = self._on_message
 
-            progress.update(90, "Connection successful!")
-            time.sleep(1)
+            # Connect
+            self.log(f"Connecting to {broker_host}:{broker_port}...")
+            result = self.client.connect(broker_host, broker_port, 60)
 
-            # Clean up
-            mqtt_manager.stop()
+            if result == mqtt.MQTT_ERR_SUCCESS:
+                self.log("Connection initiated successfully")
 
-            progress.update(100, "Test completed successfully!")
-            time.sleep(1)
-            progress.close()
+                # Process network events for 10 seconds
+                start_time = time.time()
+                while time.time() - start_time < 10:
+                    self.client.loop(timeout=0.1)
+                    time.sleep(0.1)
 
-            # Show success dialog
-            xbmcgui.Dialog().ok(
-                "MQTT Test - Success",
-                f"Successfully connected to MQTT broker!\n\n"
-                f"Host: {broker_host}:{broker_port}\n"
-                f"SSL: {'Yes' if use_ssl else 'No'}\n"
-                f"Device ID: {mqtt_manager.device_id}"
-            )
+                # Test publish
+                if self.connected:
+                    self.test_publish()
+
+                # Disconnect
+                self.client.disconnect()
+                return self.connected
+
+            else:
+                self.log(f"✗ Connection failed with result code: {result}", xbmc.LOGERROR)
+                return False
+
+        except Exception as e:
+            self.log(f"✗ Connection error: {e}", xbmc.LOGERROR)
+            return False
+
+    def _on_connect(self, client, userdata, flags, rc):
+        """Connection callback"""
+        if rc == 0:
+            self.connected = True
+            self.log("✓ Successfully connected to MQTT broker")
+
+            # Subscribe to test topic
+            client.subscribe("cloudsync/test/+")
+            self.log("✓ Subscribed to test topics")
 
         else:
-            progress.close()
-            xbmcgui.Dialog().ok(
-                "MQTT Test - Failed",
-                f"Failed to connect to MQTT broker.\n\n"
-                f"Please check your settings:\n"
-                f"• Host: {broker_host}\n"
-                f"• Port: {broker_port}\n"
-                f"• Username: {username}\n"
-                f"• SSL: {'Yes' if use_ssl else 'No'}"
-            )
+            self.log(f"✗ Connection failed with return code {rc}", xbmc.LOGERROR)
 
-    except Exception as e:
-        progress.close()
-        error_msg = str(e)
-        xbmc.log(f"CloudSync MQTT Test Error: {error_msg}", xbmc.LOGERROR)
-        xbmcgui.Dialog().ok(
-            "MQTT Test - Error",
-            f"An error occurred during testing:\n\n{error_msg}"
-        )
+    def _on_disconnect(self, client, userdata, rc):
+        """Disconnection callback"""
+        self.connected = False
+        if rc == 0:
+            self.log("✓ Clean disconnection from MQTT broker")
+        else:
+            self.log(f"✗ Unexpected disconnection, return code: {rc}", xbmc.LOGWARNING)
 
-def show_mqtt_setup_help():
-    """Show help dialog for MQTT setup"""
+    def _on_message(self, client, userdata, message):
+        """Message callback"""
+        try:
+            topic = message.topic
+            payload = json.loads(message.payload.decode('utf-8'))
+            self.log(f"✓ Received test message on {topic}")
+        except Exception as e:
+            self.log(f"✗ Error processing message: {e}", xbmc.LOGERROR)
 
-    help_text = (
-        "MQTT Real-time Sync Setup:\n\n"
-        "1. Create free HiveMQ Cloud account:\n"
-        "   • Go to console.hivemq.cloud\n"
-        "   • Create free cluster\n\n"
-        "2. Configure CloudSync:\n"
-        "   • Host: your-cluster.hivemq.cloud\n"
-        "   • Port: 8883 (SSL) or 1883 (no SSL)\n"
-        "   • Username: from HiveMQ console\n"
-        "   • Password: from HiveMQ console\n\n"
-        "3. Test connection using button above\n\n"
-        "4. Enable MQTT sync and repeat on other devices"
-    )
+    def test_publish(self):
+        """Test message publishing"""
+        if not self.connected:
+            return False
 
-    xbmcgui.Dialog().ok("MQTT Setup Help", help_text)
+        self.log("Testing message publishing...")
 
-if __name__ == "__main__":
-    # Check if we should show help or run test
-    if len(sys.argv) > 1 and sys.argv[1] == "help":
-        show_mqtt_setup_help()
-    else:
-        test_mqtt_connection()
+        try:
+            test_message = {
+                "device_id": f"test_{int(time.time())}",
+                "timestamp": int(time.time()),
+                "test_data": "CloudSync V2 MQTT Test"
+            }
+
+            result = self.client.publish("cloudsync/test/message", json.dumps(test_message))
+
+            if result.rc == mqtt.MQTT_ERR_SUCCESS:
+                self.log("✓ Test message published successfully")
+                return True
+            else:
+                self.log(f"✗ Publish failed with result code: {result.rc}", xbmc.LOGERROR)
+                return False
+
+        except Exception as e:
+            self.log(f"✗ Publish error: {e}", xbmc.LOGERROR)
+            return False
+
+    def run_test(self):
+        """Run complete MQTT test"""
+        self.log("=== CloudSync V2 MQTT Test Started ===")
+
+        # Test sequence
+        tests = [
+            ("MQTT Library", self.test_mqtt_availability),
+            ("Configuration", self.test_configuration),
+            ("Connection", self.test_connection)
+        ]
+
+        results = {}
+        for test_name, test_func in tests:
+            try:
+                results[test_name] = test_func()
+            except Exception as e:
+                self.log(f"✗ {test_name} test failed with exception: {e}", xbmc.LOGERROR)
+                results[test_name] = False
+
+        # Summary
+        self.log("=== Test Results ===")
+        all_passed = True
+        for test_name, passed in results.items():
+            status = "✓ PASSED" if passed else "✗ FAILED"
+            self.log(f"{test_name}: {status}")
+            if not passed:
+                all_passed = False
+
+        if all_passed:
+            self.log("=== All Tests PASSED ===")
+            message = "CloudSync V2 MQTT Test: All tests PASSED"
+        else:
+            self.log("=== Some Tests FAILED ===")
+            message = "CloudSync V2 MQTT Test: Some tests FAILED - check logs"
+
+        # Show result dialog
+        xbmcgui.Dialog().ok("CloudSync V2 MQTT Test", message)
+
+        return all_passed
+
+
+def main():
+    """Main test entry point"""
+    test = CloudSyncMQTTTest()
+    test.run_test()
+
+
+if __name__ == '__main__':
+    main()

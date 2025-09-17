@@ -1,47 +1,30 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <settings>
   <category label="General">
-    <setting id="enabled" type="bool" label="Enable CloudSync" default="true"/>
+    <setting id="enabled" type="bool" label="Enable CloudSync V2" default="true"/>
     <setting id="debug_logging" type="bool" label="Enable Debug Logging" default="false"/>
+    <setting id="device_name" type="text" label="Device Name" default=""/>
   </category>
 
-  <category label="Dropbox">
-    <setting id="dropbox_enabled" type="bool" label="Enable Dropbox Sync" default="false"/>
-    <setting id="dropbox_access_token" type="text" label="Access Token" default="" option="hidden" enable="eq(-1,true)"/>
-    <setting id="dropbox_refresh_token" type="text" label="Refresh Token" default="" option="hidden" enable="eq(-2,true)"/>
-    <setting id="dropbox_app_key" type="text" label="App Key" default="" option="hidden" enable="eq(-3,true)"/>
-    <setting id="dropbox_app_secret" type="text" label="App Secret" default="" option="hidden" enable="eq(-4,true)"/>
-    <setting id="dropbox_simple_web" type="action" label="Simple Web Setup" action="RunScript(special://home/addons/service.cloudsync/resources/lib/dropbox_simple_web.py)" enable="eq(-5,true)"/>
-    <setting id="test_connection" type="action" label="Test Connection" action="RunScript(special://home/addons/service.cloudsync/resources/lib/dropbox_test_simple.py)" enable="eq(-6,true)"/>
+  <category label="MQTT Broker">
+    <setting id="mqtt_broker_host" type="text" label="MQTT Broker Host" default=""/>
+    <setting id="mqtt_broker_port" type="text" label="MQTT Broker Port" default="8883"/>
+    <setting id="mqtt_username" type="text" label="MQTT Username" default=""/>
+    <setting id="mqtt_password" type="text" label="MQTT Password" default="" option="hidden"/>
+    <setting id="mqtt_use_ssl" type="bool" label="Use SSL/TLS" default="true"/>
+    <setting id="mqtt_test_connection" type="action" label="Test MQTT Connection" action="RunScript(special://home/addons/service.cloudsync_v2/resources/lib/mqtt_test.py)"/>
   </category>
 
   <category label="Sync Options">
     <setting id="sync_watched" type="bool" label="Sync Watched Status" default="true"/>
-    <setting id="sync_resume_points" type="bool" label="Sync Resume Points" default="true"/>
+    <setting id="sync_resume" type="bool" label="Sync Resume Points" default="true"/>
     <setting id="sync_favorites" type="bool" label="Sync Favorites" default="true"/>
-    <setting id="sync_sources" type="bool" label="Sync Sources" default="false"/>
-    <setting id="sync_userdata" type="bool" label="Sync UserData Files" default="false"/>
-    <setting id="sync_playlists" type="bool" label="Sync Playlists" default="false"/>
+    <setting id="sync_episodes" type="bool" label="Sync Episodes" default="true"/>
   </category>
 
-  <category label="MQTT Sync (Beta)">
-    <setting id="mqtt_enabled" type="bool" label="Enable MQTT Real-time Sync" default="false"/>
-    <setting id="mqtt_broker_host" type="text" label="MQTT Broker Host" default="" enable="eq(-1,true)"/>
-    <setting id="mqtt_broker_port" type="text" label="MQTT Broker Port" default="8883" enable="eq(-2,true)"/>
-    <setting id="mqtt_username" type="text" label="MQTT Username" default="" enable="eq(-3,true)"/>
-    <setting id="mqtt_password" type="text" label="MQTT Password" default="" option="hidden" enable="eq(-4,true)"/>
-    <setting id="mqtt_use_ssl" type="bool" label="Use SSL/TLS" default="true" enable="eq(-5,true)"/>
-    <setting id="mqtt_device_id" type="text" label="Device ID" default="" option="hidden" enable="eq(-6,true)"/>
-    <setting id="mqtt_test_connection" type="action" label="Test MQTT Connection" action="RunScript(special://home/addons/service.cloudsync/resources/lib/mqtt_test.py)" enable="eq(-7,true)"/>
+  <category label="Advanced">
+    <setting id="mqtt_device_id" type="text" label="Device ID" default="" option="hidden"/>
+    <setting id="connection_timeout" type="slider" label="Connection Timeout (seconds)" default="60" range="10,5,300"/>
+    <setting id="keepalive" type="slider" label="Keep Alive (seconds)" default="60" range="30,10,300"/>
   </category>
-
-  <category label="Sync Behavior">
-    <setting id="auto_sync" type="bool" label="Auto Sync on Changes" default="true"/>
-    <setting id="sync_interval" type="slider" label="Manual Sync Interval (minutes)" default="5" range="1,1,60"/>
-    <setting id="use_compression" type="bool" label="Use GZIP Compression" default="true"/>
-    <setting id="conflict_resolution" type="select" label="Conflict Resolution" default="newer" values="newer|local|remote"/>
-    <setting id="favorites_refresh" type="bool" label="Try Favorites Refresh (Experimental)" default="false"/>
-    <setting id="perform_full_sync" type="action" label="Perform Full Sync Now" action="RunScript(special://home/addons/service.cloudsync/resources/lib/manual_sync.py)"/>
-  </category>
-
 </settings>
