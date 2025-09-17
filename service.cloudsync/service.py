@@ -263,6 +263,11 @@ class CloudSyncServiceV2:
     def _sync_favorite_add(self, title: str, path: str, fav_type: str, content: dict):
         """Add favorite to local Kodi"""
         try:
+            # Validate path protocol to avoid "Invalid protocol" errors
+            if not path or not self._is_valid_favorite_path(path):
+                self._log(f"Skipping favorite with invalid path: {title} - {path}", xbmc.LOGWARNING)
+                return
+
             thumbnail = content.get('thumbnail', '')
 
             if self.kodi_rpc.add_favourite(title, fav_type, path, thumbnail):
@@ -272,6 +277,20 @@ class CloudSyncServiceV2:
 
         except Exception as e:
             self._log(f"Error adding favorite: {e}", xbmc.LOGERROR)
+
+    def _is_valid_favorite_path(self, path: str) -> bool:
+        """Check if favorite path has valid protocol"""
+        if not path:
+            return False
+
+        # Common valid protocols for Kodi favorites
+        valid_protocols = [
+            'plugin://', 'upnp://', 'nfs://', 'smb://', 'ftp://', 'http://', 'https://',
+            'addons://', 'videodb://', 'musicdb://', 'special://', 'sources://',
+            'library://', 'file://', 'zip://', 'rar://'
+        ]
+
+        return any(path.startswith(protocol) for protocol in valid_protocols)
 
     def _handle_device_message(self, topic: str, payload: dict):
         """Handle device status messages"""
@@ -291,8 +310,14 @@ class CloudSyncServiceV2:
             if not self.addon.getSettingBool('sync_favorites'):
                 return
 
-            # Get current favorites
-            current_favorites = self.kodi_rpc.get_favourites()
+            # Get current favorites with error handling
+            try:
+                current_favorites = self.kodi_rpc.get_favourites()
+                if current_favorites is None:
+                    current_favorites = []
+            except Exception as fav_error:
+                self._log(f"Error getting favorites: {fav_error}", xbmc.LOGERROR)
+                return
 
             # Initialize if first run
             if self.last_favorites is None:
