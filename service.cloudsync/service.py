@@ -9,6 +9,7 @@ MQTT-first real-time sync service for Kodi with Favorites polling
 import sys
 import os
 import time
+import xml.etree.ElementTree as ET
 import xbmc
 import xbmcaddon
 
@@ -263,9 +264,14 @@ class CloudSyncServiceV2:
     def _sync_favorite_add(self, title: str, path: str, fav_type: str, content: dict):
         """Add favorite to local Kodi"""
         try:
+            # Use XML content if available, fallback to path
+            xml_content = content.get('xml_content', '')
+            actual_path = xml_content if xml_content else path
             thumbnail = content.get('thumbnail', '')
 
-            if self.kodi_rpc.add_favourite(title, fav_type, path, thumbnail):
+            self._log(f"Adding favorite: {title}, path: {actual_path}", xbmc.LOGDEBUG)
+
+            if self.kodi_rpc.add_favourite(title, fav_type, actual_path, thumbnail):
                 self._log(f"Added favorite: {title} ({fav_type})")
             else:
                 self._log(f"Failed to add favorite: {title}", xbmc.LOGWARNING)
@@ -292,17 +298,24 @@ class CloudSyncServiceV2:
             if not self.addon.getSettingBool('sync_favorites'):
                 return
 
-            # Get current favorites with error handling
+            # Get current favorites - API as trigger, pair with XML content
             try:
-                current_favorites = self.kodi_rpc.get_favourites()
-                if current_favorites is None:
-                    current_favorites = []
+                # API favorites - used as trigger to detect changes
+                api_favorites = self.kodi_rpc.get_favourites()
+                if api_favorites is None:
+                    api_favorites = []
 
-                # DEBUG: Log exact API output for comparison with XML
-                self._log("=== FAVORITES API DEBUG ===", xbmc.LOGINFO)
+                # Create current favorites by pairing API triggers with XML content
+                current_favorites = self._pair_api_with_xml(api_favorites)
+
+                # DEBUG: Log API and paired results
+                self._log("=== FAVORITES API DEBUG (trigger) ===", xbmc.LOGINFO)
+                for i, fav in enumerate(api_favorites):
+                    self._log(f"API {i+1}: {fav}", xbmc.LOGINFO)
+                self._log("=== PAIRED FAVORITES DEBUG (API + XML) ===", xbmc.LOGINFO)
                 for i, fav in enumerate(current_favorites):
-                    self._log(f"Favorite {i+1}: {fav}", xbmc.LOGINFO)
-                self._log("=== END API DEBUG ===", xbmc.LOGINFO)
+                    self._log(f"Paired {i+1}: {fav}", xbmc.LOGINFO)
+                self._log("=== END DEBUG ===", xbmc.LOGINFO)
 
             except Exception as fav_error:
                 self._log(f"Error getting favorites: {fav_error}", xbmc.LOGERROR)
@@ -351,9 +364,11 @@ class CloudSyncServiceV2:
         try:
             title = favorite.get('title', 'Unknown')
             path = favorite.get('path', '')
+            xml_content = favorite.get('xml_content', '')
             fav_type = favorite.get('type', 'unknown')
 
             self._log(f"Favorites {action}: {title} ({fav_type})", xbmc.LOGINFO)
+            self._log(f"XML content: {xml_content}", xbmc.LOGDEBUG)
 
             topic = f"cloudsync/favorites/{action}"
 
@@ -362,6 +377,7 @@ class CloudSyncServiceV2:
                     "action": action,
                     "title": title,
                     "path": path,
+                    "xml_content": xml_content,  # Send original XML content
                     "type": fav_type,
                     "thumbnail": favorite.get('thumbnail', '')
                 }
@@ -375,6 +391,72 @@ class CloudSyncServiceV2:
 
         except Exception as e:
             self._log(f"Error publishing favorite change: {e}", xbmc.LOGERROR)
+
+
+    def _pair_api_with_xml(self, api_favorites):
+        """Pair API favorites (trigger) with corresponding XML content (data)"""
+        try:
+            # Load XML favorites as dict for fast lookup
+            xml_dict = self._load_xml_favorites_dict()
+
+            paired_favorites = []
+
+            for api_fav in api_favorites:
+                api_title = api_fav.get('title', '')
+
+                # Find matching XML content by title
+                xml_content = xml_dict.get(api_title, '')
+
+                # Create favorite with API metadata + XML content
+                paired_fav = {
+                    'title': api_title,
+                    'type': api_fav.get('type', 'media'),
+                    'path': xml_content,  # Use XML content as path
+                    'xml_content': xml_content,  # Keep original XML content
+                    'thumbnail': api_fav.get('thumbnail', '')
+                }
+
+                paired_favorites.append(paired_fav)
+
+                # Log pairing result
+                if xml_content:
+                    self._log(f"Paired '{api_title}' with XML content: {xml_content[:50]}...", xbmc.LOGDEBUG)
+                else:
+                    self._log(f"No XML content found for '{api_title}'", xbmc.LOGWARNING)
+
+            return paired_favorites
+
+        except Exception as e:
+            self._log(f"Error pairing API with XML: {e}", xbmc.LOGERROR)
+            return api_favorites  # Fallback to API only
+
+    def _load_xml_favorites_dict(self):
+        """Load XML favorites as dict {title: content} for fast lookup"""
+        try:
+            # Get Kodi userdata path
+            userdata_path = xbmc.translatePath('special://userdata/')
+            xml_path = os.path.join(userdata_path, 'favourites.xml')
+
+            if not os.path.exists(xml_path):
+                self._log(f"Favorites XML not found: {xml_path}", xbmc.LOGWARNING)
+                return {}
+
+            # Parse XML
+            tree = ET.parse(xml_path)
+            root = tree.getroot()
+
+            xml_dict = {}
+            for favorite in root.findall('favourite'):
+                name = favorite.get('name', '')
+                content = favorite.text or ''
+                xml_dict[name] = content
+
+            self._log(f"Loaded {len(xml_dict)} XML favorites for pairing", xbmc.LOGDEBUG)
+            return xml_dict
+
+        except Exception as e:
+            self._log(f"Error loading XML favorites dict: {e}", xbmc.LOGERROR)
+            return {}
 
     def _main_loop(self):
         """Main service loop with MQTT processing and favorites polling"""
