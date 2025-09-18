@@ -19,6 +19,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'resources', 'lib'))
 from mqtt_client import CloudSyncMQTT
 from kodi_rpc import KodiRPC
 from kodi_monitor import CloudSyncMonitor
+from favorites_sync import FavoritesSync
 
 
 class CloudSyncServiceV2:
@@ -31,9 +32,9 @@ class CloudSyncServiceV2:
         self.kodi_monitor = None
         self.running = False
 
-        # Favorites polling state
-        self.last_favorites = None
-        self.favorites_check_counter = 0
+        # Clean favorites sync with file monitoring
+        self.favorites_sync = None
+
 
     def _log(self, message: str, level: int = xbmc.LOGINFO):
         """Centralized logging"""
@@ -59,6 +60,14 @@ class CloudSyncServiceV2:
             # Initialize Kodi monitor with MQTT publish callback
             self.kodi_monitor = CloudSyncMonitor(mqtt_publish_callback=self._mqtt_publish)
 
+            # Initialize favorites sync with file monitoring
+            self.favorites_sync = FavoritesSync(mqtt_publish_callback=self._mqtt_publish)
+            if self.addon.getSettingBool('sync_favorites_disabled'):
+                if self.favorites_sync.start_monitoring():
+                    self._log("Favorites file monitoring started successfully")
+                else:
+                    self._log("Failed to start favorites file monitoring", xbmc.LOGWARNING)
+
             # Start MQTT connection
             if self.mqtt.start():
                 self._log("MQTT connection established successfully")
@@ -78,6 +87,10 @@ class CloudSyncServiceV2:
         self._log("CloudSync V2 service stopping")
         self.running = False
 
+        # Stop favorites sync
+        if self.favorites_sync:
+            self.favorites_sync.stop_monitoring()
+
         # Stop MQTT client
         if self.mqtt:
             self.mqtt.stop()
@@ -92,7 +105,8 @@ class CloudSyncServiceV2:
         # Register handlers for different message types
         self.mqtt.register_handler("cloudsync/watched/", self._handle_watched_message)
         self.mqtt.register_handler("cloudsync/resume/", self._handle_resume_message)
-        self.mqtt.register_handler("cloudsync/favorites/", self._handle_favorites_message)
+        self.mqtt.register_handler("cloudsync/favorites/add", self._handle_favorite_add_message)
+        self.mqtt.register_handler("cloudsync/favorites/remove", self._handle_favorite_remove_message)
         self.mqtt.register_handler("cloudsync/devices/", self._handle_device_message)
 
         self._log("MQTT message handlers registered")
@@ -239,46 +253,123 @@ class CloudSyncServiceV2:
         except Exception as e:
             self._log(f"Error syncing episode resume point: {e}", xbmc.LOGERROR)
 
-    def _handle_favorites_message(self, topic: str, payload: dict):
-        """Handle favorites sync messages"""
+    def _handle_favorite_add_message(self, topic: str, payload: dict):
+        """Handle favorite add messages"""
         try:
-            if not self.addon.getSettingBool('sync_favorites'):
+            if not self.addon.getSettingBool('sync_favorites_disabled'):
                 return
 
-            self._log(f"Processing favorites sync: {topic}", xbmc.LOGDEBUG)
+            self._log(f"Processing favorite add: {topic}", xbmc.LOGDEBUG)
+
+            # Skip messages from our own device
+            device_id = payload.get('device_id')
+            if device_id == self._get_device_id():
+                self._log("Skipping add message from own device", xbmc.LOGDEBUG)
+                return
 
             content = payload.get('content', {})
-            action = content.get('action')
-            title = content.get('title', 'Unknown')
-            path = content.get('path', '')
-            fav_type = content.get('type', 'unknown')
-
-            if action == 'add':
-                self._sync_favorite_add(title, path, fav_type, content)
-            elif action == 'remove':
-                self._log(f"Received favorite remove (not implemented): {title}")
+            self._handle_favorite_add(content)
 
         except Exception as e:
-            self._log(f"Error handling favorites message: {e}", xbmc.LOGERROR)
+            self._log(f"Error handling favorite add message: {e}", xbmc.LOGERROR)
 
-    def _sync_favorite_add(self, title: str, path: str, fav_type: str, content: dict):
-        """Add favorite to local Kodi"""
+    def _handle_favorite_remove_message(self, topic: str, payload: dict):
+        """Handle favorite remove messages"""
         try:
-            # Use XML content if available, fallback to path
+            if not self.addon.getSettingBool('sync_favorites_disabled'):
+                return
+
+            self._log(f"Processing favorite remove: {topic}", xbmc.LOGDEBUG)
+
+            # Skip messages from our own device
+            device_id = payload.get('device_id')
+            if device_id == self._get_device_id():
+                self._log("Skipping remove message from own device", xbmc.LOGDEBUG)
+                return
+
+            content = payload.get('content', {})
+            self._handle_favorite_remove(content)
+
+        except Exception as e:
+            self._log(f"Error handling favorite remove message: {e}", xbmc.LOGERROR)
+
+
+    def _handle_favorite_add(self, content: dict):
+        """Handle adding a single favorite from another device"""
+        try:
+            title = content.get('title', 'Unknown')
             xml_content = content.get('xml_content', '')
-            actual_path = xml_content if xml_content else path
             thumbnail = content.get('thumbnail', '')
 
-            self._log(f"Adding favorite: {title}, path: {actual_path}", xbmc.LOGDEBUG)
+            self._log(f"Received favorite add: {title}", xbmc.LOGINFO)
 
-            if self.kodi_rpc.add_favourite(title, fav_type, actual_path, thumbnail):
-                self._log(f"Added favorite: {title} ({fav_type})")
-            else:
-                self._log(f"Failed to add favorite: {title}", xbmc.LOGWARNING)
+            if not xml_content:
+                self._log(f"No XML content for favorite: {title}", xbmc.LOGWARNING)
+                return
+
+            # Set API write flag to prevent loop
+            if self.favorites_sync:
+                self.favorites_sync.set_api_write_flag(True)
+
+            try:
+                # Use Kodi JSON-RPC to add favorite
+                result = self.kodi_rpc.add_favorite(title, xml_content, thumbnail)
+                if result:
+                    self._log(f"Successfully added favorite: {title}", xbmc.LOGINFO)
+                else:
+                    self._log(f"Failed to add favorite: {title}", xbmc.LOGWARNING)
+
+            finally:
+                # Clear API write flag
+                if self.favorites_sync:
+                    self.favorites_sync.set_api_write_flag(False)
 
         except Exception as e:
-            self._log(f"Error adding favorite: {e}", xbmc.LOGERROR)
+            self._log(f"Error handling favorite add: {e}", xbmc.LOGERROR)
 
+    def _handle_favorite_remove(self, content: dict):
+        """Handle removing a favorite from another device"""
+        try:
+            title = content.get('title', 'Unknown')
+            self._log(f"Received favorite remove: {title}", xbmc.LOGINFO)
+
+            # Set API write flag to prevent loop
+            if self.favorites_sync:
+                self.favorites_sync.set_api_write_flag(True)
+
+            try:
+                # Use Kodi JSON-RPC to remove favorite
+                result = self.kodi_rpc.remove_favorite(title)
+                if result:
+                    self._log(f"Successfully removed favorite: {title}", xbmc.LOGINFO)
+                else:
+                    self._log(f"Failed to remove favorite: {title}", xbmc.LOGWARNING)
+
+            finally:
+                # Clear API write flag
+                if self.favorites_sync:
+                    self.favorites_sync.set_api_write_flag(False)
+
+        except Exception as e:
+            self._log(f"Error handling favorite remove: {e}", xbmc.LOGERROR)
+
+    def _get_device_id(self):
+        """Get unique device identifier"""
+        try:
+            import platform
+            import hashlib
+
+            # Create device ID from hostname and platform
+            hostname = platform.node()
+            system = platform.system()
+            device_string = f"{hostname}-{system}"
+
+            # Create short hash
+            device_id = hashlib.md5(device_string.encode()).hexdigest()[:8]
+            return device_id
+
+        except Exception:
+            return "unknown"
 
     def _handle_device_message(self, topic: str, payload: dict):
         """Handle device status messages"""
@@ -291,177 +382,6 @@ class CloudSyncServiceV2:
 
         except Exception as e:
             self._log(f"Error handling device message: {e}", xbmc.LOGERROR)
-
-    def _check_favorites_changes(self):
-        """Check for favorites changes (polling-based)"""
-        try:
-            if not self.addon.getSettingBool('sync_favorites'):
-                return
-
-            # Get current favorites - API as trigger, pair with XML content
-            try:
-                # API favorites - used as trigger to detect changes
-                api_favorites = self.kodi_rpc.get_favourites()
-                if api_favorites is None:
-                    api_favorites = []
-
-                # DEBUG: Test different API calls (run once)
-                if not hasattr(self, '_api_debug_done'):
-                    self.kodi_rpc.debug_favourites_api()
-                    self._api_debug_done = True
-
-                # Create current favorites by pairing API triggers with XML content
-                current_favorites = self._pair_api_with_xml(api_favorites)
-
-                # DEBUG: Log API and paired results
-                self._log("=== FAVORITES API DEBUG (trigger) ===", xbmc.LOGINFO)
-                for i, fav in enumerate(api_favorites):
-                    self._log(f"API {i+1}: {fav}", xbmc.LOGINFO)
-                self._log("=== PAIRED FAVORITES DEBUG (API + XML) ===", xbmc.LOGINFO)
-                for i, fav in enumerate(current_favorites):
-                    self._log(f"Paired {i+1}: {fav}", xbmc.LOGINFO)
-                self._log("=== END DEBUG ===", xbmc.LOGINFO)
-
-            except Exception as fav_error:
-                self._log(f"Error getting favorites: {fav_error}", xbmc.LOGERROR)
-                return
-
-            # Initialize if first run
-            if self.last_favorites is None:
-                self.last_favorites = current_favorites
-                self._log(f"Initialized favorites tracking: {len(current_favorites)} items", xbmc.LOGDEBUG)
-                return
-
-            # Compare with previous state
-            current_set = {self._favorite_key(fav) for fav in current_favorites}
-            previous_set = {self._favorite_key(fav) for fav in self.last_favorites}
-
-            # Find added and removed favorites
-            added_keys = current_set - previous_set
-            removed_keys = previous_set - current_set
-
-            # Find actual favorite objects
-            added_favorites = [fav for fav in current_favorites if self._favorite_key(fav) in added_keys]
-            removed_favorites = [fav for fav in self.last_favorites if self._favorite_key(fav) in removed_keys]
-
-            # Publish changes
-            for favorite in added_favorites:
-                self._publish_favorite_change("add", favorite)
-
-            for favorite in removed_favorites:
-                self._publish_favorite_change("remove", favorite)
-
-            # Update state
-            self.last_favorites = current_favorites
-
-        except Exception as e:
-            self._log(f"Error checking favorites changes: {e}", xbmc.LOGERROR)
-
-    def _favorite_key(self, favorite):
-        """Generate unique key for favorite item"""
-        # Use title and path as unique identifier
-        title = favorite.get('title', '')
-        path = favorite.get('path', '')
-        return f"{title}|{path}"
-
-    def _publish_favorite_change(self, action, favorite):
-        """Publish favorite add/remove to MQTT"""
-        try:
-            title = favorite.get('title', 'Unknown')
-            path = favorite.get('path', '')
-            xml_content = favorite.get('xml_content', '')
-            fav_type = favorite.get('type', 'unknown')
-
-            self._log(f"Favorites {action}: {title} ({fav_type})", xbmc.LOGINFO)
-            self._log(f"XML content: {xml_content}", xbmc.LOGDEBUG)
-
-            topic = f"cloudsync/favorites/{action}"
-
-            payload = {
-                "content": {
-                    "action": action,
-                    "title": title,
-                    "path": path,
-                    "xml_content": xml_content,  # Send original XML content
-                    "type": fav_type,
-                    "thumbnail": favorite.get('thumbnail', '')
-                }
-            }
-
-            if self.mqtt and self.mqtt.is_connected():
-                result = self.mqtt.publish(topic, payload)
-                self._log(f"Published favorite {action}: {title} - Result: {result}", xbmc.LOGINFO)
-            else:
-                self._log(f"Cannot publish favorite {action} - MQTT not connected", xbmc.LOGWARNING)
-
-        except Exception as e:
-            self._log(f"Error publishing favorite change: {e}", xbmc.LOGERROR)
-
-
-    def _pair_api_with_xml(self, api_favorites):
-        """Pair API favorites (trigger) with corresponding XML content (data)"""
-        try:
-            # Load XML favorites as dict for fast lookup
-            xml_dict = self._load_xml_favorites_dict()
-
-            paired_favorites = []
-
-            for api_fav in api_favorites:
-                api_title = api_fav.get('title', '')
-
-                # Find matching XML content by title
-                xml_content = xml_dict.get(api_title, '')
-
-                # Create favorite with API metadata + XML content
-                paired_fav = {
-                    'title': api_title,
-                    'type': api_fav.get('type', 'media'),
-                    'path': xml_content,  # Use XML content as path
-                    'xml_content': xml_content,  # Keep original XML content
-                    'thumbnail': api_fav.get('thumbnail', '')
-                }
-
-                paired_favorites.append(paired_fav)
-
-                # Log pairing result
-                if xml_content:
-                    self._log(f"Paired '{api_title}' with XML content: {xml_content[:50]}...", xbmc.LOGDEBUG)
-                else:
-                    self._log(f"No XML content found for '{api_title}'", xbmc.LOGWARNING)
-
-            return paired_favorites
-
-        except Exception as e:
-            self._log(f"Error pairing API with XML: {e}", xbmc.LOGERROR)
-            return api_favorites  # Fallback to API only
-
-    def _load_xml_favorites_dict(self):
-        """Load XML favorites as dict {title: content} for fast lookup"""
-        try:
-            # Get Kodi userdata path
-            userdata_path = xbmc.translatePath('special://userdata/')
-            xml_path = os.path.join(userdata_path, 'favourites.xml')
-
-            if not os.path.exists(xml_path):
-                self._log(f"Favorites XML not found: {xml_path}", xbmc.LOGWARNING)
-                return {}
-
-            # Parse XML
-            tree = ET.parse(xml_path)
-            root = tree.getroot()
-
-            xml_dict = {}
-            for favorite in root.findall('favourite'):
-                name = favorite.get('name', '')
-                content = favorite.text or ''
-                xml_dict[name] = content
-
-            self._log(f"Loaded {len(xml_dict)} XML favorites for pairing", xbmc.LOGDEBUG)
-            return xml_dict
-
-        except Exception as e:
-            self._log(f"Error loading XML favorites dict: {e}", xbmc.LOGERROR)
-            return {}
 
     def _main_loop(self):
         """Main service loop with MQTT processing and favorites polling"""
@@ -488,11 +408,7 @@ class CloudSyncServiceV2:
                         status = self.mqtt.get_status()
                         self._log(f"Service status: Connected={status['connected']}, Device={status['device_id']}", xbmc.LOGINFO)
 
-                # Favorites polling (every 30 seconds)
-                self.favorites_check_counter += 1
-                if self.favorites_check_counter >= 30:
-                    self.favorites_check_counter = 0
-                    self._check_favorites_changes()
+
 
                 # Wait 1 second (responsive for MQTT)
                 if self.kodi_monitor.waitForAbort(1):

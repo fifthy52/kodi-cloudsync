@@ -1,0 +1,333 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+CloudSync V2 - Simple Favorites Sync Implementation
+Simple polling approach without external dependencies
+"""
+
+import os
+import time
+import threading
+import xml.etree.ElementTree as ET
+from typing import Optional, Dict, List, Callable
+
+import xbmc
+import xbmcvfs
+
+
+class FavoritesSync:
+    """Simple polling based favorites sync - no external dependencies"""
+
+    def __init__(self, mqtt_publish_callback: Callable = None):
+        self.mqtt_publish = mqtt_publish_callback
+        self.favorites_path = None
+        self.api_write_in_progress = False
+        self.monitoring_thread = None
+        self.stop_monitoring_flag = False
+        self.last_file_mtime = 0
+        self.last_file_size = 0
+        self.previous_favorites = []
+
+        # Get platform-independent favourites.xml path
+        self._init_favorites_path()
+
+    def _log(self, message: str, level: int = xbmc.LOGINFO):
+        """Centralized logging"""
+        xbmc.log(f"CloudSync V2 Favorites: {message}", level)
+
+    def _init_favorites_path(self):
+        """Initialize platform-independent favourites.xml path"""
+        try:
+            # Try newer Kodi versions first
+            try:
+                userdata_path = xbmcvfs.translatePath('special://userdata/')
+            except AttributeError:
+                # Fallback for older Kodi versions
+                userdata_path = xbmc.translatePath('special://userdata/')
+
+            self.favorites_path = os.path.join(userdata_path, 'favourites.xml')
+            self._log(f"Favourites path: {self.favorites_path}", xbmc.LOGINFO)
+
+        except Exception as e:
+            self._log(f"Error getting favourites path: {e}", xbmc.LOGERROR)
+            self.favorites_path = None
+
+    def start_monitoring(self):
+        """Start simple polling monitoring"""
+        if not self.favorites_path:
+            self._log("Cannot start monitoring - no favourites path", xbmc.LOGERROR)
+            return False
+
+        try:
+            # Initialize file state
+            self._update_file_state()
+
+            # Start monitoring thread
+            self.stop_monitoring_flag = False
+            self.monitoring_thread = threading.Thread(target=self._monitoring_loop, daemon=True)
+            self.monitoring_thread.start()
+
+            self._log("Started simple polling monitoring (5 second intervals)", xbmc.LOGINFO)
+            return True
+
+        except Exception as e:
+            self._log(f"Error starting monitoring: {e}", xbmc.LOGERROR)
+            return False
+
+    def stop_monitoring(self):
+        """Stop monitoring"""
+        if self.monitoring_thread:
+            self.stop_monitoring_flag = True
+            self.monitoring_thread.join(timeout=2)
+            self.monitoring_thread = None
+            self._log("Stopped favorites monitoring", xbmc.LOGINFO)
+
+    def _update_file_state(self):
+        """Update stored file state"""
+        try:
+            if os.path.exists(self.favorites_path):
+                stat = os.stat(self.favorites_path)
+                self.last_file_mtime = stat.st_mtime
+                self.last_file_size = stat.st_size
+            else:
+                self.last_file_mtime = 0
+                self.last_file_size = 0
+        except Exception as e:
+            self._log(f"Error updating file state: {e}", xbmc.LOGERROR)
+
+    def _monitoring_loop(self):
+        """Simple polling loop"""
+        while not self.stop_monitoring_flag:
+            try:
+                # Check if file has changed
+                if self._has_file_changed():
+                    self._log("Favourites file changed detected", xbmc.LOGINFO)
+
+                    # Update file state
+                    self._update_file_state()
+
+                    # Process the change
+                    self._on_favorites_changed()
+
+                # Sleep for 5 seconds
+                time.sleep(5)
+
+            except Exception as e:
+                self._log(f"Error in monitoring loop: {e}", xbmc.LOGERROR)
+                time.sleep(5)
+
+    def _has_file_changed(self):
+        """Check if file has changed since last check"""
+        try:
+            if not os.path.exists(self.favorites_path):
+                # File doesn't exist - changed if we had it before
+                return self.last_file_mtime > 0 or self.last_file_size > 0
+
+            stat = os.stat(self.favorites_path)
+            current_mtime = stat.st_mtime
+            current_size = stat.st_size
+
+            # Check if modification time or size changed
+            changed = (current_mtime != self.last_file_mtime or
+                      current_size != self.last_file_size)
+
+            return changed
+
+        except Exception as e:
+            self._log(f"Error checking file changes: {e}", xbmc.LOGERROR)
+            return False
+
+    def _on_favorites_changed(self):
+        """Handle favourites.xml file change"""
+        try:
+            # Skip if our own API write is in progress
+            if self.api_write_in_progress:
+                self._log("Skipping file change - API write in progress", xbmc.LOGDEBUG)
+                return
+
+            self._log("Processing favourites file change", xbmc.LOGINFO)
+
+            # Parse current favourites from XML
+            current_favorites = self._parse_favorites_xml()
+
+            if current_favorites is None:
+                self._log("Failed to parse favourites XML", xbmc.LOGWARNING)
+                return
+
+            self._log(f"Found {len(current_favorites)} favourites in XML", xbmc.LOGINFO)
+
+            # Compare with previous state to detect changes
+            if self.previous_favorites:
+                changes = self._detect_favorites_changes(self.previous_favorites, current_favorites)
+                if changes:
+                    self._publish_favorites_changes(changes)
+                else:
+                    self._log("No favorites changes detected", xbmc.LOGDEBUG)
+            else:
+                # First run - just store current state, don't publish
+                self._log("First favorites scan - storing initial state", xbmc.LOGINFO)
+
+            # Store current state for next comparison
+            self.previous_favorites = current_favorites.copy()
+
+        except Exception as e:
+            self._log(f"Error processing favourites change: {e}", xbmc.LOGERROR)
+
+    def _detect_favorites_changes(self, previous: List[Dict], current: List[Dict]):
+        """Detect what favorites were added or removed"""
+        try:
+            # Create sets of titles for comparison
+            prev_titles = set(fav.get('title', '') for fav in previous)
+            curr_titles = set(fav.get('title', '') for fav in current)
+
+            # Find added and removed favorites
+            added_titles = curr_titles - prev_titles
+            removed_titles = prev_titles - curr_titles
+
+            # Debug logging
+            self._log(f"Previous favorites: {sorted(list(prev_titles))}", xbmc.LOGINFO)
+            self._log(f"Current favorites: {sorted(list(curr_titles))}", xbmc.LOGINFO)
+            self._log(f"Added: {sorted(list(added_titles))}", xbmc.LOGINFO)
+            self._log(f"Removed: {sorted(list(removed_titles))}", xbmc.LOGINFO)
+
+            changes = []
+
+            # Add "add" changes
+            for favorite in current:
+                title = favorite.get('title', '')
+                if title in added_titles:
+                    changes.append({
+                        'action': 'add',
+                        'favorite': favorite
+                    })
+
+            # Add "remove" changes
+            for title in removed_titles:
+                changes.append({
+                    'action': 'remove',
+                    'title': title
+                })
+
+            self._log(f"Detected {len(added_titles)} added, {len(removed_titles)} removed favorites", xbmc.LOGINFO)
+            return changes
+
+        except Exception as e:
+            self._log(f"Error detecting favorites changes: {e}", xbmc.LOGERROR)
+            return []
+
+    def _publish_favorites_changes(self, changes: List[Dict]):
+        """Publish individual favorite changes to MQTT"""
+        try:
+            device_id = self._get_device_id()
+            timestamp = int(time.time())
+
+            for change in changes:
+                action = change.get('action')
+
+                if action == 'add':
+                    favorite = change.get('favorite', {})
+                    payload = {
+                        'device_id': device_id,
+                        'timestamp': timestamp,
+                        'content': {
+                            'action': 'add',
+                            'title': favorite.get('title', ''),
+                            'xml_content': favorite.get('xml_content', ''),
+                            'thumbnail': favorite.get('thumbnail', '')
+                        }
+                    }
+                    topic = "cloudsync/favorites/add"
+
+                elif action == 'remove':
+                    title = change.get('title', '')
+                    payload = {
+                        'device_id': device_id,
+                        'timestamp': timestamp,
+                        'content': {
+                            'action': 'remove',
+                            'title': title
+                        }
+                    }
+                    topic = "cloudsync/favorites/remove"
+
+                else:
+                    continue
+
+                self._log(f"Publishing favorite {action}: {payload['content'].get('title', 'Unknown')}", xbmc.LOGINFO)
+
+                if self.mqtt_publish(topic, payload):
+                    self._log(f"Favorite {action} published successfully", xbmc.LOGINFO)
+                else:
+                    self._log(f"Failed to publish favorite {action}", xbmc.LOGWARNING)
+
+        except Exception as e:
+            self._log(f"Error publishing favorites changes: {e}", xbmc.LOGERROR)
+
+    def _get_device_id(self):
+        """Get unique device identifier"""
+        try:
+            import platform
+            import hashlib
+
+            # Create device ID from hostname and platform
+            hostname = platform.node()
+            system = platform.system()
+            device_string = f"{hostname}-{system}"
+
+            # Create short hash
+            device_id = hashlib.md5(device_string.encode()).hexdigest()[:8]
+            return device_id
+
+        except Exception:
+            return "unknown"
+
+    def _parse_favorites_xml(self) -> Optional[List[Dict]]:
+        """Parse favourites.xml and return list of favorites"""
+        try:
+            if not os.path.exists(self.favorites_path):
+                self._log("Favourites.xml does not exist", xbmc.LOGDEBUG)
+                return []
+
+            # Parse XML
+            tree = ET.parse(self.favorites_path)
+            root = tree.getroot()
+
+            favorites = []
+
+            for fav_elem in root.findall('favourite'):
+                # Extract attributes
+                title = fav_elem.get('name', '')
+                thumb = fav_elem.get('thumb', '')
+
+                # Extract content (the action)
+                content = fav_elem.text or ''
+                content = content.strip()
+
+                # Create favorite dict with title-only key strategy
+                favorite = {
+                    'title': title,
+                    'xml_content': content,
+                    'thumbnail': thumb,
+                    'xml_element': ET.tostring(fav_elem, encoding='unicode').strip()
+                }
+
+                favorites.append(favorite)
+
+            return favorites
+
+        except Exception as e:
+            self._log(f"Error parsing favourites XML: {e}", xbmc.LOGERROR)
+            return None
+
+    def get_favorite_key(self, favorite: Dict) -> str:
+        """Generate stable key for favorite - title only approach"""
+        return favorite.get('title', '')
+
+    def set_api_write_flag(self, in_progress: bool):
+        """Set API write flag to prevent loop detection"""
+        self.api_write_in_progress = in_progress
+        if in_progress:
+            self._log("API write started - ignoring file changes", xbmc.LOGDEBUG)
+        else:
+            self._log("API write finished - resuming file monitoring", xbmc.LOGDEBUG)

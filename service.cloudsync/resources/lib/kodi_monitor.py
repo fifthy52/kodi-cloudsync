@@ -21,6 +21,10 @@ class CloudSyncMonitor(xbmc.Monitor):
         self.mqtt_publish = mqtt_publish_callback
         self.last_played_item = None
 
+        # Debug: Track all notifications with timestamps
+        import time
+        self.last_notifications = []
+
     def _log(self, message: str, level: int = xbmc.LOGINFO):
         """Centralized logging"""
         xbmc.log(f"CloudSync V2 Monitor: {message}", level)
@@ -28,7 +32,15 @@ class CloudSyncMonitor(xbmc.Monitor):
     def onNotification(self, sender: str, method: str, data: str):
         """Handle Kodi notifications"""
         try:
-            self._log(f"Notification received: {sender} - {method}", xbmc.LOGINFO)
+            # Debug: Log all notifications with timestamp
+            import time
+            timestamp = time.time()
+            self.last_notifications.append((timestamp, sender, method, data))
+            # Keep only last 10 notifications
+            if len(self.last_notifications) > 10:
+                self.last_notifications = self.last_notifications[-10:]
+
+            self._log(f"[{timestamp:.3f}] Notification: {sender} - {method} - Data: {data}", xbmc.LOGINFO)
 
             if not self.mqtt_publish:
                 self._log("No MQTT publish callback available", xbmc.LOGWARNING)
@@ -50,6 +62,7 @@ class CloudSyncMonitor(xbmc.Monitor):
             elif method == "Player.OnStop":
                 self._log(f"Player stop notification: {notification_data}", xbmc.LOGINFO)
                 self._handle_player_stop(notification_data)
+
             else:
                 self._log(f"Unhandled notification: {method}", xbmc.LOGINFO)
 
@@ -320,3 +333,11 @@ class CloudSyncMonitor(xbmc.Monitor):
 
         except Exception as e:
             self._log(f"Error publishing episode resume point: {e}", xbmc.LOGERROR)
+
+
+    def dump_recent_notifications(self):
+        """Dump recent notifications for debugging"""
+        self._log("=== RECENT NOTIFICATIONS ===", xbmc.LOGINFO)
+        for timestamp, sender, method, data in self.last_notifications:
+            self._log(f"[{timestamp:.3f}] {sender} - {method} - {data}", xbmc.LOGINFO)
+        self._log("=== END NOTIFICATIONS ===", xbmc.LOGINFO)
