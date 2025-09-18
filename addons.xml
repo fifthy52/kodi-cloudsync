@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <addons>
-    <addon id="service.cloudsync" name="CloudSync" version="2.0.2" provider-name="CloudSync">
+    <addon id="service.cloudsync" name="CloudSync" version="3.0.0" provider-name="CloudSync">
         <requires>
             <import addon="xbmc.python" version="3.0.0"/>
         </requires>
         <extension point="xbmc.service" library="service.py" start="startup" />
         <extension point="xbmc.addon.metadata">
             <summary>CloudSync - Real-time MQTT Sync</summary>
-            <description>CloudSync delivers instant synchronization of watched status, resume points, and favorites across multiple Kodi devices using lightweight MQTT messaging. Features real-time updates, HiveMQ Cloud integration, and zero-conflict architecture without databases or file management.</description>
+            <description>CloudSync V3 delivers instant synchronization of watched status, resume points, and favorites across multiple Kodi devices using lightweight MQTT messaging. Features real-time updates, HiveMQ Cloud integration, and add-only favorites sync. Note: Favorites removal must be done manually on each device to prevent sync conflicts.</description>
             <platform>all</platform>
             <language>en</language>
             <license>MIT</license>
@@ -15,13 +15,14 @@
             <website>https://github.com/fifthy52/kodi-cloudsync</website>
             <source>https://github.com/fifthy52/kodi-cloudsync</source>
             <news>
+v3.0.0 - CloudSync V3: Add-Only Favorites Architecture
+- Simplified to add-only favorites sync (prevents Kodi cache conflicts)
+- Anti-loop protection prevents ping-pong broadcasts between devices
+- Manual removal required on each device (prevents sync wars)
+- Improved stability and reliability for favorites synchronization
+v2.0.2 - Fixed addon ID references and repository structure
 v2.0.1 - Repository automation update
-v2.0.0 - CloudSync with MQTT-first architecture
-- Real-time watched status sync
-- Resume points synchronization
-- Favorites sync via Kodi API
-- HiveMQ Cloud support
-- No databases, pure event messaging
+v2.0.0 - Initial release with MQTT-first architecture
             </news>
         </extension>
     </addon>
