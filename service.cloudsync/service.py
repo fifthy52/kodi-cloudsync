@@ -173,7 +173,7 @@ class CloudSyncServiceV3:
 
     def _mqtt_publish(self, topic: str, payload: dict) -> bool:
         """Publish message to MQTT with connection check"""
-        self._log(f"_mqtt_publish called: topic={topic}", xbmc.LOGINFO)
+        self._log(f"Publishing: {topic}", xbmc.LOGDEBUG)
 
         if not self.mqtt:
             self._log("MQTT client is None", xbmc.LOGERROR)
@@ -184,9 +184,10 @@ class CloudSyncServiceV3:
             self._log(f"MQTT not connected - status: {status}", xbmc.LOGWARNING)
             return False
 
-        self._log("Publishing to MQTT...", xbmc.LOGINFO)
+        # Publishing to MQTT (removed verbose log)
         result = self.mqtt.publish(topic, payload)
-        self._log(f"MQTT publish completed with result: {result}", xbmc.LOGINFO)
+        if not result:
+            self._log(f"MQTT publish failed for: {topic}", xbmc.LOGWARNING)
         return result
 
     def _handle_resume_message(self, topic: str, payload: dict):
@@ -388,13 +389,13 @@ class CloudSyncServiceV3:
                     else:
                         self._log("MQTT reconnect failed", xbmc.LOGWARNING)
 
-                # Periodic status logging (every 60 seconds)
+                # Periodic status logging (every 5 minutes)
                 loop_counter += 1
-                if loop_counter >= 60:  # 60 seconds at 1-second intervals
+                if loop_counter >= 300:  # 300 seconds at 1-second intervals
                     loop_counter = 0
                     if self.mqtt:
                         status = self.mqtt.get_status()
-                        self._log(f"Service status: Connected={status['connected']}, Device={status['device_id']}", xbmc.LOGINFO)
+                        self._log(f"Status: Connected={status['connected']}, Device={status['device_id'][:12]}...", xbmc.LOGDEBUG)
 
 
 

@@ -189,9 +189,10 @@ class FavoritesSync:
             added_titles = curr_titles - prev_titles
 
             # Debug logging
-            self._log(f"Previous favorites: {sorted(list(prev_titles))}", xbmc.LOGINFO)
-            self._log(f"Current favorites: {sorted(list(curr_titles))}", xbmc.LOGINFO)
-            self._log(f"Added: {sorted(list(added_titles))}", xbmc.LOGINFO)
+            self._log(f"Previous: {len(prev_titles)} favorites", xbmc.LOGDEBUG)
+            self._log(f"Current: {len(curr_titles)} favorites", xbmc.LOGDEBUG)
+            if added_titles:
+                self._log(f"New favorites: {list(added_titles)}", xbmc.LOGINFO)
             self._log("V3: Removals ignored (add-only mode)", xbmc.LOGINFO)
 
             changes = []
@@ -210,7 +211,7 @@ class FavoritesSync:
                         'favorite': favorite
                     })
 
-            self._log(f"V3: Detected {len([c for c in changes if c['action'] == 'add'])} new favorites to broadcast", xbmc.LOGINFO)
+            # Detected changes (removed verbose log)
             return changes
 
         except Exception as e:
