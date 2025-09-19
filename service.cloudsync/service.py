@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-CloudSync V2 - Main Service
-MQTT-first real-time sync service for Kodi with Favorites polling
+CloudSync V3 - Main Service
+MQTT-first real-time sync service for Kodi with Add-only Favorites
 """
 
 import sys
@@ -22,8 +22,8 @@ from kodi_monitor import CloudSyncMonitor
 from favorites_sync import FavoritesSync
 
 
-class CloudSyncServiceV2:
-    """CloudSync V2 - Real-time MQTT sync service"""
+class CloudSyncServiceV3:
+    """CloudSync V3 - Real-time MQTT sync service with add-only favorites"""
 
     def __init__(self):
         self.addon = xbmcaddon.Addon('service.cloudsync')
@@ -38,17 +38,17 @@ class CloudSyncServiceV2:
 
     def _log(self, message: str, level: int = xbmc.LOGINFO):
         """Centralized logging"""
-        xbmc.log(f"CloudSync V2: {message}", level)
+        xbmc.log(f"CloudSync V3: {message}", level)
 
     def start(self):
-        """Start the CloudSync V2 service"""
+        """Start the CloudSync V3 service"""
         try:
             # Check if service is enabled
             if not self.addon.getSettingBool('enabled'):
-                self._log("CloudSync V2 is disabled in settings")
+                self._log("CloudSync V3 is disabled in settings")
                 return
 
-            self._log("CloudSync V2 service starting")
+            self._log("CloudSync V3 service starting")
             self.running = True
 
             # Initialize MQTT client
@@ -60,11 +60,11 @@ class CloudSyncServiceV2:
             # Initialize Kodi monitor with MQTT publish callback
             self.kodi_monitor = CloudSyncMonitor(mqtt_publish_callback=self._mqtt_publish)
 
-            # Initialize favorites sync with file monitoring
+            # Initialize favorites sync with file monitoring (V3: add-only mode)
             self.favorites_sync = FavoritesSync(mqtt_publish_callback=self._mqtt_publish)
-            if self.addon.getSettingBool('sync_favorites_disabled'):
+            if self.addon.getSettingBool('sync_favorites'):
                 if self.favorites_sync.start_monitoring():
-                    self._log("Favorites file monitoring started successfully")
+                    self._log("V3: Favorites file monitoring started (add-only mode)")
                 else:
                     self._log("Failed to start favorites file monitoring", xbmc.LOGWARNING)
 
@@ -78,13 +78,13 @@ class CloudSyncServiceV2:
             self._main_loop()
 
         except Exception as e:
-            self._log(f"Error starting CloudSync V2 service: {e}", xbmc.LOGERROR)
+            self._log(f"Error starting CloudSync V3 service: {e}", xbmc.LOGERROR)
         finally:
             self.stop()
 
     def stop(self):
-        """Stop the CloudSync V2 service"""
-        self._log("CloudSync V2 service stopping")
+        """Stop the CloudSync V3 service"""
+        self._log("CloudSync V3 service stopping")
         self.running = False
 
         # Stop favorites sync
@@ -95,7 +95,7 @@ class CloudSyncServiceV2:
         if self.mqtt:
             self.mqtt.stop()
 
-        self._log("CloudSync V2 service stopped")
+        self._log("CloudSync V3 service stopped")
 
     def _register_message_handlers(self):
         """Register MQTT message handlers for different sync events"""
@@ -106,7 +106,8 @@ class CloudSyncServiceV2:
         self.mqtt.register_handler("cloudsync/watched/", self._handle_watched_message)
         self.mqtt.register_handler("cloudsync/resume/", self._handle_resume_message)
         self.mqtt.register_handler("cloudsync/favorites/add", self._handle_favorite_add_message)
-        self.mqtt.register_handler("cloudsync/favorites/remove", self._handle_favorite_remove_message)
+        # V3: Remove handler disabled (add-only mode)
+        # self.mqtt.register_handler("cloudsync/favorites/remove", self._handle_favorite_remove_message)
         self.mqtt.register_handler("cloudsync/devices/", self._handle_device_message)
 
         self._log("MQTT message handlers registered")
@@ -254,9 +255,9 @@ class CloudSyncServiceV2:
             self._log(f"Error syncing episode resume point: {e}", xbmc.LOGERROR)
 
     def _handle_favorite_add_message(self, topic: str, payload: dict):
-        """Handle favorite add messages"""
+        """Handle favorite add messages (V3: add-only mode)"""
         try:
-            if not self.addon.getSettingBool('sync_favorites_disabled'):
+            if not self.addon.getSettingBool('sync_favorites'):
                 return
 
             self._log(f"Processing favorite add: {topic}", xbmc.LOGDEBUG)
@@ -295,27 +296,28 @@ class CloudSyncServiceV2:
 
 
     def _handle_favorite_add(self, content: dict):
-        """Handle adding a single favorite from another device"""
+        """Handle adding a single favorite from another device (V3: with anti-loop protection)"""
         try:
             title = content.get('title', 'Unknown')
             xml_content = content.get('xml_content', '')
             thumbnail = content.get('thumbnail', '')
 
-            self._log(f"Received favorite add: {title}", xbmc.LOGINFO)
+            self._log(f"V3: Received favorite add: {title}", xbmc.LOGINFO)
 
             if not xml_content:
                 self._log(f"No XML content for favorite: {title}", xbmc.LOGWARNING)
                 return
 
-            # Set API write flag to prevent loop
+            # V3: Mark as received to prevent loop broadcasting
             if self.favorites_sync:
+                self.favorites_sync.mark_favorite_as_received(title)
                 self.favorites_sync.set_api_write_flag(True)
 
             try:
                 # Use Kodi JSON-RPC to add favorite
                 result = self.kodi_rpc.add_favorite(title, xml_content, thumbnail)
                 if result:
-                    self._log(f"Successfully added favorite: {title}", xbmc.LOGINFO)
+                    self._log(f"V3: Successfully added favorite: {title}", xbmc.LOGINFO)
                 else:
                     self._log(f"Failed to add favorite: {title}", xbmc.LOGWARNING)
 
@@ -423,7 +425,7 @@ class CloudSyncServiceV2:
 
 def main():
     """Main entry point"""
-    service = CloudSyncServiceV2()
+    service = CloudSyncServiceV3()
     service.start()
 
 

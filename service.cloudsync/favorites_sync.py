@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-CloudSync V2 - Simple Favorites Sync Implementation
-Simple polling approach without external dependencies
+CloudSync V3 - Add-only Favorites Sync with Anti-loop Protection
+Simple polling approach with anti-loop protection to prevent sync wars
 """
 
 import os
@@ -17,7 +17,7 @@ import xbmcvfs
 
 
 class FavoritesSync:
-    """Simple polling based favorites sync - no external dependencies"""
+    """CloudSync V3 - Add-only favorites sync with anti-loop protection"""
 
     def __init__(self, mqtt_publish_callback: Callable = None):
         self.mqtt_publish = mqtt_publish_callback
@@ -29,12 +29,16 @@ class FavoritesSync:
         self.last_file_size = 0
         self.previous_favorites = []
 
+        # V3: Anti-loop protection - track recently received favorites
+        self.recently_received_favorites = {}
+        self.anti_loop_grace_period = 10  # seconds
+
         # Get platform-independent favourites.xml path
         self._init_favorites_path()
 
     def _log(self, message: str, level: int = xbmc.LOGINFO):
         """Centralized logging"""
-        xbmc.log(f"CloudSync V2 Favorites: {message}", level)
+        xbmc.log(f"CloudSync V3 Favorites: {message}", level)
 
     def _init_favorites_path(self):
         """Initialize platform-independent favourites.xml path"""
@@ -175,41 +179,38 @@ class FavoritesSync:
             self._log(f"Error processing favourites change: {e}", xbmc.LOGERROR)
 
     def _detect_favorites_changes(self, previous: List[Dict], current: List[Dict]):
-        """Detect what favorites were added or removed"""
+        """Detect what favorites were added (V3: add-only mode with anti-loop protection)"""
         try:
             # Create sets of titles for comparison
             prev_titles = set(fav.get('title', '') for fav in previous)
             curr_titles = set(fav.get('title', '') for fav in current)
 
-            # Find added and removed favorites
+            # V3: Only detect additions, ignore removals
             added_titles = curr_titles - prev_titles
-            removed_titles = prev_titles - curr_titles
 
             # Debug logging
             self._log(f"Previous favorites: {sorted(list(prev_titles))}", xbmc.LOGINFO)
             self._log(f"Current favorites: {sorted(list(curr_titles))}", xbmc.LOGINFO)
             self._log(f"Added: {sorted(list(added_titles))}", xbmc.LOGINFO)
-            self._log(f"Removed: {sorted(list(removed_titles))}", xbmc.LOGINFO)
+            self._log("V3: Removals ignored (add-only mode)", xbmc.LOGINFO)
 
             changes = []
 
-            # Add "add" changes
+            # V3: Only process additions with anti-loop protection
             for favorite in current:
                 title = favorite.get('title', '')
                 if title in added_titles:
+                    # Check anti-loop protection
+                    if self._is_recently_received(title):
+                        self._log(f"Skipping '{title}' - recently received (anti-loop)", xbmc.LOGDEBUG)
+                        continue
+
                     changes.append({
                         'action': 'add',
                         'favorite': favorite
                     })
 
-            # Add "remove" changes
-            for title in removed_titles:
-                changes.append({
-                    'action': 'remove',
-                    'title': title
-                })
-
-            self._log(f"Detected {len(added_titles)} added, {len(removed_titles)} removed favorites", xbmc.LOGINFO)
+            self._log(f"V3: Detected {len([c for c in changes if c['action'] == 'add'])} new favorites to broadcast", xbmc.LOGINFO)
             return changes
 
         except Exception as e:
@@ -217,7 +218,7 @@ class FavoritesSync:
             return []
 
     def _publish_favorites_changes(self, changes: List[Dict]):
-        """Publish individual favorite changes to MQTT"""
+        """Publish individual favorite changes to MQTT (V3: add-only)"""
         try:
             device_id = self._get_device_id()
             timestamp = int(time.time())
@@ -239,27 +240,14 @@ class FavoritesSync:
                     }
                     topic = "cloudsync/favorites/add"
 
-                elif action == 'remove':
-                    title = change.get('title', '')
-                    payload = {
-                        'device_id': device_id,
-                        'timestamp': timestamp,
-                        'content': {
-                            'action': 'remove',
-                            'title': title
-                        }
-                    }
-                    topic = "cloudsync/favorites/remove"
+                    self._log(f"V3: Publishing favorite add: {payload['content'].get('title', 'Unknown')}", xbmc.LOGINFO)
 
-                else:
-                    continue
+                    if self.mqtt_publish(topic, payload):
+                        self._log(f"Favorite add published successfully", xbmc.LOGINFO)
+                    else:
+                        self._log(f"Failed to publish favorite add", xbmc.LOGWARNING)
 
-                self._log(f"Publishing favorite {action}: {payload['content'].get('title', 'Unknown')}", xbmc.LOGINFO)
-
-                if self.mqtt_publish(topic, payload):
-                    self._log(f"Favorite {action} published successfully", xbmc.LOGINFO)
-                else:
-                    self._log(f"Failed to publish favorite {action}", xbmc.LOGWARNING)
+                # V3: Remove operations are ignored in add-only mode
 
         except Exception as e:
             self._log(f"Error publishing favorites changes: {e}", xbmc.LOGERROR)
@@ -331,3 +319,35 @@ class FavoritesSync:
             self._log("API write started - ignoring file changes", xbmc.LOGDEBUG)
         else:
             self._log("API write finished - resuming file monitoring", xbmc.LOGDEBUG)
+
+    def mark_favorite_as_received(self, title: str):
+        """Mark favorite as recently received to prevent loop broadcasting"""
+        current_time = time.time()
+        self.recently_received_favorites[title] = current_time
+        self._log(f"Marked '{title}' as recently received (anti-loop)", xbmc.LOGDEBUG)
+
+    def _is_recently_received(self, title: str) -> bool:
+        """Check if favorite was recently received from MQTT (anti-loop protection)"""
+        current_time = time.time()
+
+        # Clean up old entries first
+        self._cleanup_old_received_favorites(current_time)
+
+        # Check if this title was recently received
+        if title in self.recently_received_favorites:
+            received_time = self.recently_received_favorites[title]
+            if current_time - received_time < self.anti_loop_grace_period:
+                self._log(f"Skipping broadcast for '{title}' - recently received ({current_time - received_time:.1f}s ago)", xbmc.LOGDEBUG)
+                return True
+
+        return False
+
+    def _cleanup_old_received_favorites(self, current_time: float):
+        """Remove old entries from recently received favorites"""
+        expired_titles = []
+        for title, received_time in self.recently_received_favorites.items():
+            if current_time - received_time >= self.anti_loop_grace_period:
+                expired_titles.append(title)
+
+        for title in expired_titles:
+            del self.recently_received_favorites[title]
