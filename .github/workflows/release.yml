@@ -109,12 +109,10 @@ jobs:
     - name: Create repository ZIP
       if: steps.get_version.outputs.SKIP_BUILD == 'false'
       run: |
-        # Create repository ZIP
+        # Create repository ZIP with proper structure (repository.cloudsync/ folder inside)
         if [ -d "repository.cloudsync" ]; then
-          cd repository.cloudsync
-          zip -r ../repository.cloudsync.zip *
-          cd ..
-          echo "Created repository.cloudsync.zip"
+          zip -r repository.cloudsync.zip repository.cloudsync
+          echo "Created repository.cloudsync.zip with proper structure"
         fi
 
     - name: Create GitHub Release
