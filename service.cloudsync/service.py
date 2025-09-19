@@ -356,22 +356,8 @@ class CloudSyncServiceV3:
             self._log(f"Error handling favorite remove: {e}", xbmc.LOGERROR)
 
     def _get_device_id(self):
-        """Get unique device identifier"""
-        try:
-            import platform
-            import hashlib
-
-            # Create device ID from hostname and platform
-            hostname = platform.node()
-            system = platform.system()
-            device_string = f"{hostname}-{system}"
-
-            # Create short hash
-            device_id = hashlib.md5(device_string.encode()).hexdigest()[:8]
-            return device_id
-
-        except Exception:
-            return "unknown"
+        """Get unique device identifier (same as MQTT client)"""
+        return self.mqtt.device_id if self.mqtt else "unknown"
 
     def _handle_device_message(self, topic: str, payload: dict):
         """Handle device status messages"""

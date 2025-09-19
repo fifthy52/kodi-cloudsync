@@ -253,20 +253,12 @@ class FavoritesSync:
             self._log(f"Error publishing favorites changes: {e}", xbmc.LOGERROR)
 
     def _get_device_id(self):
-        """Get unique device identifier"""
+        """Get unique device identifier (same as MQTT client)"""
         try:
-            import platform
-            import hashlib
-
-            # Create device ID from hostname and platform
-            hostname = platform.node()
-            system = platform.system()
-            device_string = f"{hostname}-{system}"
-
-            # Create short hash
-            device_id = hashlib.md5(device_string.encode()).hexdigest()[:8]
-            return device_id
-
+            import xbmcaddon
+            addon = xbmcaddon.Addon('service.cloudsync')
+            device_id = addon.getSetting('mqtt_device_id')
+            return device_id if device_id else "unknown"
         except Exception:
             return "unknown"
 
