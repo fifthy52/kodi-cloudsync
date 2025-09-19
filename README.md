@@ -1,4 +1,4 @@
-# CloudSync for Kodi
+# CloudSync V3 for Kodi
 
 Real-time synchronization of watched status, resume points, and favorites across multiple Kodi devices using MQTT messaging. Instant cross-device sync without databases or file conflicts.
 
@@ -6,11 +6,13 @@ Real-time synchronization of watched status, resume points, and favorites across
 
 - **Real-time Watched Status Sync** - Instant movie/episode playcount updates across devices
 - **Resume Points Sync** - Continue watching from exact position on any device
-- **Favorites Sync** - Real-time favorites synchronization via Kodi API
+- **Add-only Favorites Sync** - V3 anti-loop protection prevents sync wars between devices
+- **Web Configuration Interface** - Easy MQTT setup via browser instead of TV remote
 - **MQTT Messaging** - Lightweight, instant communication between devices
 - **HiveMQ Cloud Integration** - Secure SSL/TLS cloud messaging
 - **Zero-Conflict Architecture** - No databases, no file conflicts
 - **Event-Driven Design** - React instantly to Kodi library changes
+- **Automatic Settings Reload** - Web server starts/stops instantly when settings change
 
 ## 🚀 Installation
 
@@ -29,31 +31,44 @@ Real-time synchronization of watched status, resume points, and favorites across
 
 ## ⚙️ Configuration
 
-### MQTT Setup
+### 🌐 Web Configuration (V3 Feature!)
 1. Go to CloudSync settings in Kodi
-2. Configure MQTT broker settings:
+2. Enable **"Web Configuration"** in MQTT Configuration section
+3. Open your browser and go to `http://[kodi-ip]:8090`
+4. Configure MQTT settings easily through the web interface:
    - **Broker Host**: Your MQTT broker (e.g., HiveMQ Cloud)
    - **Port**: 8883 (SSL/TLS) or 1883 (plain)
    - **Username/Password**: Your MQTT credentials
-   - **Device Name**: Unique name for this Kodi device
+   - **SSL/TLS**: Enable for secure connections
+
+### 📱 Traditional Setup (TV Remote)
+1. Go to CloudSync settings in Kodi → MQTT Configuration
+2. Configure MQTT broker settings directly in Kodi
 3. Enable CloudSync and restart Kodi
 
-### Sync Features
+### 🔄 Sync Features
 - **Watched Status** - Real-time movie/episode watch status
 - **Resume Points** - Video playback positions
-- **Favorites** - Favorites menu items (polled every 30 seconds)
+- **Favorites** - Add-only sync with anti-loop protection (V3)
 
 ## 🏗️ Architecture
 
-CloudSync V2 uses a pure MQTT-first architecture:
+CloudSync V3 uses a pure MQTT-first architecture:
 
 - **Event-Driven**: Responds to Kodi notifications instantly
+- **Anti-Loop Protection**: V3 prevents sync wars with 10-second grace period
+- **Web Server Integration**: Built-in HTTP server for easy configuration
 - **Lightweight**: MQTT messages for minimal network overhead
 - **Reliable**: HiveMQ Cloud with SSL/TLS encryption
 - **Scalable**: Add unlimited Kodi devices to sync network
 
 ## 🔄 Version History
 
+- **v3.2.2** - Clean settings interface, removed duplicate fields
+- **v3.2.1** - Automatic web server restart on settings change
+- **v3.2.0** - Web configuration interface for easy MQTT setup
+- **v3.1.0** - Production-ready with optimized logging
+- **v3.0.0** - Add-only favorites sync with anti-loop protection
 - **v2.0.0** - Complete MQTT-first rebuild, real-time sync, favorites support
 - **v1.x.x** - Legacy Dropbox-based sync (deprecated)
 
@@ -70,6 +85,8 @@ service.cloudsync/
 │       ├── mqtt_client.py       # MQTT wrapper with Paho
 │       ├── kodi_monitor.py      # Kodi event monitoring
 │       ├── kodi_rpc.py          # JSON-RPC API wrapper
+│       ├── favorites_sync.py    # V3 add-only favorites sync
+│       ├── web_config.py        # V3 web configuration server
 │       └── paho/               # Embedded Paho MQTT library
 ```
 
@@ -79,6 +96,20 @@ git clone https://github.com/fifthy52/kodi-cloudsync.git
 cd kodi-cloudsync
 zip -r service.cloudsync-dev.zip service.cloudsync/
 ```
+
+### V3 Key Features
+
+#### 🌐 Web Configuration Server
+- Built-in HTTP server on port 8090 (configurable)
+- Browser-based MQTT configuration interface
+- Automatic server start/stop when settings change
+- No need to restart addon when enabling web config
+
+#### 🔒 Anti-Loop Protection
+- 10-second grace period prevents sync wars
+- Add-only favorites sync (no automatic removals)
+- Device-specific tracking of recently received favorites
+- Eliminates infinite sync loops between devices
 
 ## 🤝 Contributing
 
