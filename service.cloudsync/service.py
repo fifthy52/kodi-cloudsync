@@ -61,8 +61,11 @@ class CloudSyncServiceV3:
             # Register message handlers
             self._register_message_handlers()
 
-            # Initialize Kodi monitor with MQTT publish callback
-            self.kodi_monitor = CloudSyncMonitor(mqtt_publish_callback=self._mqtt_publish)
+            # Initialize Kodi monitor with MQTT publish callback and settings change callback
+            self.kodi_monitor = CloudSyncMonitor(
+                mqtt_publish_callback=self._mqtt_publish,
+                settings_change_callback=self._on_settings_changed
+            )
 
             # Initialize favorites sync with file monitoring (V3: add-only mode)
             self.favorites_sync = FavoritesSync(mqtt_publish_callback=self._mqtt_publish)
@@ -376,6 +379,39 @@ class CloudSyncServiceV3:
     def _get_device_id(self):
         """Get unique device identifier (same as MQTT client)"""
         return self.mqtt.device_id if self.mqtt else "unknown"
+
+    def _on_settings_changed(self):
+        """Handle CloudSync settings changes - restart web server if needed"""
+        try:
+            self._log("Settings changed - checking web configuration", xbmc.LOGINFO)
+
+            # Check if web config setting changed
+            web_config_enabled = self.addon.getSettingBool('enable_web_config')
+            web_config_port = int(self.addon.getSetting('web_config_port') or '8090')
+
+            if web_config_enabled:
+                # Stop existing web server if running
+                if self.web_config and self.web_config.is_running():
+                    self._log("Stopping existing web server for restart", xbmc.LOGINFO)
+                    self.web_config.stop()
+
+                # Start/restart web server
+                if not self.web_config:
+                    from web_config import CloudSyncWebConfig
+                    self.web_config = CloudSyncWebConfig()
+
+                if self.web_config.start(web_config_port):
+                    self._log(f"Web configuration server started on port {web_config_port}", xbmc.LOGINFO)
+                else:
+                    self._log("Failed to start web configuration server", xbmc.LOGWARNING)
+            else:
+                # Stop web server if it's running but disabled
+                if self.web_config and self.web_config.is_running():
+                    self._log("Disabling web configuration server", xbmc.LOGINFO)
+                    self.web_config.stop()
+
+        except Exception as e:
+            self._log(f"Error handling settings change: {e}", xbmc.LOGERROR)
 
     def _handle_device_message(self, topic: str, payload: dict):
         """Handle device status messages"""

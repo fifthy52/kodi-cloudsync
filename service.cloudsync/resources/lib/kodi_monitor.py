@@ -15,10 +15,11 @@ from kodi_rpc import KodiRPC
 class CloudSyncMonitor(xbmc.Monitor):
     """Monitor Kodi events for CloudSync V3"""
 
-    def __init__(self, mqtt_publish_callback: Callable = None):
+    def __init__(self, mqtt_publish_callback: Callable = None, settings_change_callback: Callable = None):
         super().__init__()
         self.kodi_rpc = KodiRPC()
         self.mqtt_publish = mqtt_publish_callback
+        self.settings_change_callback = settings_change_callback
         self.last_played_item = None
 
         # Debug: Track all notifications with timestamps
@@ -68,6 +69,19 @@ class CloudSyncMonitor(xbmc.Monitor):
 
         except Exception as e:
             self._log(f"Error handling notification {method}: {e}", xbmc.LOGERROR)
+
+    def onSettingsChanged(self):
+        """Handle addon settings changes"""
+        try:
+            self._log("CloudSync V3 settings changed - triggering reload", xbmc.LOGINFO)
+
+            if self.settings_change_callback:
+                self.settings_change_callback()
+            else:
+                self._log("No settings change callback available", xbmc.LOGWARNING)
+
+        except Exception as e:
+            self._log(f"Error handling settings change: {e}", xbmc.LOGERROR)
 
     def _handle_library_update(self, data: dict):
         """Handle video library update notification"""

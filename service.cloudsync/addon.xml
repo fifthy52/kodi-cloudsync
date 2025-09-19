@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="service.cloudsync" name="CloudSync" version="3.2.0" provider-name="CloudSync">
+<addon id="service.cloudsync" name="CloudSync" version="3.2.1" provider-name="CloudSync">
   <requires>
     <import addon="xbmc.python" version="3.0.0"/>
   </requires>
@@ -14,11 +14,14 @@
     <website>https://github.com/fifthy52/kodi-cloudsync</website>
     <source>https://github.com/fifthy52/kodi-cloudsync</source>
     <news>
+v3.2.1 - Automatic Web Server Restart
+- Web server now starts/stops automatically when settings change
+- No need to restart addon when enabling web configuration
+- Real-time settings change detection and server reload
 v3.2.0 - Web Configuration Interface
 - Added browser-based MQTT configuration server
 - Easy setup without TV remote input for broker settings
 - Configurable web server port (default 8090)
-- User-friendly interface at http://[kodi-ip]:8090
 v3.1.0 - Production-ready release with optimized logging
 - Cleaned up verbose debug logs for better readability
 - Unified V3 branding across all components
