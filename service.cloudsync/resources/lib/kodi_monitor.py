@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-CloudSync V2 - Kodi Event Monitor
+CloudSync V3 - Kodi Event Monitor
 Monitor Kodi events and trigger MQTT sync
 """
 
@@ -13,7 +13,7 @@ from kodi_rpc import KodiRPC
 
 
 class CloudSyncMonitor(xbmc.Monitor):
-    """Monitor Kodi events for CloudSync V2"""
+    """Monitor Kodi events for CloudSync V3"""
 
     def __init__(self, mqtt_publish_callback: Callable = None):
         super().__init__()
@@ -27,7 +27,7 @@ class CloudSyncMonitor(xbmc.Monitor):
 
     def _log(self, message: str, level: int = xbmc.LOGINFO):
         """Centralized logging"""
-        xbmc.log(f"CloudSync V2 Monitor: {message}", level)
+        xbmc.log(f"CloudSync V3 Monitor: {message}", level)
 
     def onNotification(self, sender: str, method: str, data: str):
         """Handle Kodi notifications"""

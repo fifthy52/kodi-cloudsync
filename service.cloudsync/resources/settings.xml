@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <settings>
   <category label="General">
-    <setting id="enabled" type="bool" label="Enable CloudSync V2" default="true"/>
+    <setting id="enabled" type="bool" label="Enable CloudSync V3" default="true"/>
     <setting id="debug_logging" type="bool" label="Enable Debug Logging" default="false"/>
     <setting id="device_name" type="text" label="Device Name" default=""/>
   </category>

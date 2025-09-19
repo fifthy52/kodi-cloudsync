@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-CloudSync V2 - MQTT Client Wrapper
+CloudSync V3 - MQTT Client Wrapper
 Clean, simple MQTT client designed specifically for Kodi real-time sync
 """
 
@@ -19,11 +19,11 @@ try:
     MQTT_AVAILABLE = True
 except ImportError:
     MQTT_AVAILABLE = False
-    xbmc.log("CloudSync V2: Paho MQTT not available", xbmc.LOGERROR)
+    xbmc.log("CloudSync V3: Paho MQTT not available", xbmc.LOGERROR)
 
 
 class CloudSyncMQTT:
-    """Clean MQTT client wrapper for CloudSync V2"""
+    """Clean MQTT client wrapper for CloudSync V3"""
 
     def __init__(self):
         self.addon = self._get_addon()
@@ -59,13 +59,13 @@ class CloudSyncMQTT:
                 device_id = f"cloudsync_{uuid.uuid4().hex[:8]}"
 
             self.addon.setSetting('mqtt_device_id', device_id)
-            xbmc.log(f"CloudSync V2: Generated device ID: {device_id}", xbmc.LOGINFO)
+            xbmc.log(f"CloudSync V3: Generated device ID: {device_id}", xbmc.LOGINFO)
 
         return device_id
 
     def _log(self, message: str, level: int = xbmc.LOGINFO):
         """Centralized logging"""
-        xbmc.log(f"CloudSync V2 MQTT: {message}", level)
+        xbmc.log(f"CloudSync V3 MQTT: {message}", level)
 
     def configure(self) -> bool:
         """Load MQTT configuration from addon settings"""

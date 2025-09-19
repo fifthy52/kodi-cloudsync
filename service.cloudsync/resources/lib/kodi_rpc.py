@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-CloudSync V2 - Kodi JSON-RPC Wrapper
+CloudSync V3 - Kodi JSON-RPC Wrapper
 Clean interface for Kodi library operations
 """
 
@@ -14,14 +14,14 @@ from typing import Dict, Any, List, Optional
 
 
 class KodiRPC:
-    """Kodi JSON-RPC wrapper for CloudSync V2"""
+    """Kodi JSON-RPC wrapper for CloudSync V3"""
 
     def __init__(self):
         pass
 
     def _log(self, message: str, level: int = xbmc.LOGINFO):
         """Centralized logging"""
-        xbmc.log(f"CloudSync V2 RPC: {message}", level)
+        xbmc.log(f"CloudSync V3 RPC: {message}", level)
 
     def _execute_rpc(self, method: str, params: Dict[str, Any] = None) -> Optional[Dict[str, Any]]:
         """Execute JSON-RPC command"""
