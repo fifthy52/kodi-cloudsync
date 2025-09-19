@@ -6,7 +6,10 @@
     <setting id="device_name" type="text" label="Device Name" default=""/>
   </category>
 
-  <category label="MQTT Broker">
+  <category label="MQTT Configuration">
+    <setting id="enable_web_config" type="bool" label="Enable Web Configuration" default="false"/>
+    <setting id="web_config_port" type="text" label="Web Config Port" default="8090"/>
+    <setting id="web_config_info" type="lsep" label="Open http://[kodi-ip]:8090 in your browser to configure MQTT settings easily"/>
     <setting id="mqtt_broker_host" type="text" label="MQTT Broker Host" default=""/>
     <setting id="mqtt_broker_port" type="text" label="MQTT Broker Port" default="8883"/>
     <setting id="mqtt_username" type="text" label="MQTT Username" default=""/>

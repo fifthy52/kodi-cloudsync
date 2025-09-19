@@ -20,6 +20,7 @@ from mqtt_client import CloudSyncMQTT
 from kodi_rpc import KodiRPC
 from kodi_monitor import CloudSyncMonitor
 from favorites_sync import FavoritesSync
+from web_config import CloudSyncWebConfig
 
 
 class CloudSyncServiceV3:
@@ -34,6 +35,9 @@ class CloudSyncServiceV3:
 
         # Clean favorites sync with file monitoring
         self.favorites_sync = None
+
+        # Web configuration server
+        self.web_config = None
 
 
     def _log(self, message: str, level: int = xbmc.LOGINFO):
@@ -68,6 +72,15 @@ class CloudSyncServiceV3:
                 else:
                     self._log("Failed to start favorites file monitoring", xbmc.LOGWARNING)
 
+            # Initialize web configuration server
+            if self.addon.getSettingBool('enable_web_config'):
+                self.web_config = CloudSyncWebConfig()
+                web_port = int(self.addon.getSetting('web_config_port') or '8090')
+                if self.web_config.start(web_port):
+                    self._log(f"Web configuration server started on port {web_port}")
+                else:
+                    self._log("Failed to start web configuration server", xbmc.LOGWARNING)
+
             # Start MQTT connection
             if self.mqtt.start():
                 self._log("MQTT connection established successfully")
@@ -90,6 +103,10 @@ class CloudSyncServiceV3:
         # Stop favorites sync
         if self.favorites_sync:
             self.favorites_sync.stop_monitoring()
+
+        # Stop web configuration server
+        if self.web_config:
+            self.web_config.stop()
 
         # Stop MQTT client
         if self.mqtt:
