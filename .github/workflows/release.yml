@@ -92,6 +92,10 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
 
+        # Remove old ZIP files to keep only current version
+        find service.cloudsync -name "service.cloudsync-*.zip" ! -name "service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip" -delete
+        find service.cloudsync -name "service.cloudsync-*.zip.md5" ! -name "service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip.md5" -delete
+
         # Force add ZIP files despite gitignore
         git add -f service.cloudsync/*.zip
         git add -f service.cloudsync/*.zip.md5
