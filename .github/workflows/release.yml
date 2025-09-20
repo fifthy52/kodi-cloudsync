@@ -30,14 +30,9 @@ jobs:
         echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
         echo "Found version: $VERSION"
 
-        # Check if ZIP already exists
-        if [ -f "service.cloudsync/service.cloudsync-${VERSION}.zip" ]; then
-          echo "ZIP file already exists for version $VERSION"
-          echo "SKIP_BUILD=true" >> $GITHUB_OUTPUT
-        else
-          echo "Need to build ZIP for version $VERSION"
-          echo "SKIP_BUILD=false" >> $GITHUB_OUTPUT
-        fi
+        # Always build since ZIPs are ignored by git and may not exist locally
+        echo "Building ZIP for version $VERSION"
+        echo "SKIP_BUILD=false" >> $GITHUB_OUTPUT
 
     - name: Create addon ZIP and MD5
       if: steps.get_version.outputs.SKIP_BUILD == 'false'
@@ -58,7 +53,7 @@ jobs:
         # Create service.cloudsync directory if it doesn't exist
         mkdir -p service.cloudsync
 
-        # Move ZIP to proper location
+        # Move ZIP to proper Kodi repository location
         mv temp_addon.zip service.cloudsync/service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip
 
         # Generate MD5 in proper location
@@ -69,7 +64,7 @@ jobs:
         # Clean up
         rm -rf temp_build
 
-        echo "Created service.cloudsync/service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip (Kodi standard structure)"
+        echo "Created service.cloudsync/service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip (Kodi repository standard)"
 
     - name: Update addons.xml with current version
       run: |
@@ -122,12 +117,18 @@ jobs:
         if gh release view "v${{ steps.get_version.outputs.VERSION }}" >/dev/null 2>&1; then
           echo "Release v${{ steps.get_version.outputs.VERSION }} already exists, skipping creation"
         else
+          # Create temporary ZIP for release (from service.cloudsync location)
+          cp service.cloudsync/service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip ./
+
           gh release create "v${{ steps.get_version.outputs.VERSION }}" \
-            service.cloudsync/service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip \
+            service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip \
             repository.cloudsync.zip \
             --title "CloudSync v${{ steps.get_version.outputs.VERSION }}" \
             --notes "CloudSync v${{ steps.get_version.outputs.VERSION }} - New version with latest improvements and fixes."
           echo "Created release v${{ steps.get_version.outputs.VERSION }}"
+
+          # Clean up temporary file
+          rm -f service.cloudsync-${{ steps.get_version.outputs.VERSION }}.zip
         fi
       env:
         GH_TOKEN: ${{ github.token }}
