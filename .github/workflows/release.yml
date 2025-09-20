@@ -92,7 +92,12 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
 
-        git add -A
+        # Force add ZIP files despite gitignore
+        git add -f service.cloudsync/*.zip
+        git add -f service.cloudsync/*.zip.md5
+        git add addons.xml addons.xml.md5
+        git add repository.cloudsync/
+
         if ! git diff --staged --quiet; then
           git commit -m "Auto-update repository for v${{ steps.get_version.outputs.VERSION }}"
           git push
