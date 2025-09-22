@@ -98,9 +98,11 @@ class CloudSyncMQTT:
 
         try:
             # Create MQTT client with MQTT 5.0 for offline support
-            # Use device_id as base but add process ID to prevent "session taken over"
+            # Use clean sessions to avoid "session taken over" conflicts
+            # The broker's retained messages will handle offline sync automatically
             import os
-            unique_client_id = f"{self.device_id}_pid{os.getpid()}"
+            import time
+            unique_client_id = f"{self.device_id}_t{int(time.time())}_pid{os.getpid()}"
 
             self.client = mqtt.Client(
                 mqtt.CallbackAPIVersion.VERSION1,
@@ -108,15 +110,12 @@ class CloudSyncMQTT:
                 protocol=mqtt.MQTTv5       # MQTT 5.0 for message expiry support
             )
 
-            # Set persistent session for MQTT 5.0 (clean_start=False)
-            self.client.clean_start = False
+            # Use clean sessions to prevent session conflicts
+            # MQTT retained messages will handle offline sync
+            self.client.clean_start = True
 
-            # Set Session Expiry Interval for proper offline handling (24 hours)
-            # This ensures sessions persist for offline devices but don't accumulate indefinitely
-            session_expiry_interval = 86400  # 24 hours in seconds
-            if hasattr(self.client, '_connect_properties'):
-                self.client._connect_properties = mqtt.Properties(mqtt.PacketTypes.CONNECT)
-                self.client._connect_properties.SessionExpiryInterval = session_expiry_interval
+            # No session expiry needed with clean sessions
+            # Offline sync is handled by MQTT retained messages
 
             # Set credentials
             self.client.username_pw_set(self.username, self.password)
