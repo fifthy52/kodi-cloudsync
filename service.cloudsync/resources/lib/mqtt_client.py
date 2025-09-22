@@ -97,11 +97,12 @@ class CloudSyncMQTT:
             return False
 
         try:
-            # Create MQTT client with modern callback API
+            # Create MQTT client with MQTT 5.0 for offline support
             self.client = mqtt.Client(
                 mqtt.CallbackAPIVersion.VERSION1,
-                client_id=f"{self.device_id}_session_{uuid.uuid4().hex[:6]}",
-                protocol=mqtt.MQTTv311
+                client_id=self.device_id,  # Stable ID for persistent sessions
+                clean_session=False,       # Persistent session for offline message accumulation
+                protocol=mqtt.MQTTv5       # MQTT 5.0 for message expiry support
             )
 
             # Set credentials
@@ -203,18 +204,42 @@ class CloudSyncMQTT:
             except Exception as e:
                 self._log(f"Error subscribing to {topic}: {e}", xbmc.LOGERROR)
 
+    def get_message_params(self, topic: str) -> tuple:
+        """Return (qos, retain, expiry) based on topic type for offline support"""
+        if "watched" in topic or "resume" in topic:
+            # Critical data: QoS 1, retain for offline devices, 30 days expiry
+            return (1, True, 2592000)
+        elif "favorites" in topic:
+            # Event data: QoS 1 for delivery guarantee, no retain, 7 days expiry
+            return (1, False, 604800)
+        elif "status" in topic:
+            # Status data: QoS 0 (real-time), retain for last known state, 1 day expiry
+            return (0, True, 86400)
+        else:
+            # Default: best effort, no persistence
+            return (0, False, None)
+
     def register_handler(self, topic_pattern: str, handler: Callable):
         """Register message handler for topic pattern"""
         self.message_handlers[topic_pattern] = handler
         self._log(f"Registered handler for topic pattern: {topic_pattern}", xbmc.LOGDEBUG)
 
-    def publish(self, topic: str, payload: Dict[str, Any]) -> bool:
-        """Publish message to MQTT topic"""
+    def publish(self, topic: str, payload: Dict[str, Any],
+                qos: Optional[int] = None, retain: Optional[bool] = None,
+                message_expiry: Optional[int] = None) -> bool:
+        """Publish message to MQTT topic with offline support"""
         if not self.connected:
             self._log("Cannot publish - not connected to MQTT broker", xbmc.LOGWARNING)
             return False
 
         try:
+            # Get message parameters based on topic type if not explicitly provided
+            if qos is None or retain is None or message_expiry is None:
+                auto_qos, auto_retain, auto_expiry = self.get_message_params(topic)
+                qos = qos if qos is not None else auto_qos
+                retain = retain if retain is not None else auto_retain
+                message_expiry = message_expiry if message_expiry is not None else auto_expiry
+
             # Add device ID and timestamp
             message = {
                 "device_id": self.device_id,
@@ -222,11 +247,27 @@ class CloudSyncMQTT:
                 **payload
             }
 
-            # Publish message
-            result = self.client.publish(topic, json.dumps(message))
+            # Create MQTT 5.0 properties for message expiry
+            properties = None
+            if message_expiry and hasattr(mqtt, 'Properties'):
+                try:
+                    properties = mqtt.Properties(mqtt.PacketTypes.PUBLISH)
+                    properties.MessageExpiryInterval = message_expiry
+                except:
+                    # Fallback if MQTT 5.0 properties not available
+                    self._log(f"MQTT 5.0 properties not available, publishing without expiry", xbmc.LOGDEBUG)
+
+            # Publish message with offline support parameters
+            result = self.client.publish(
+                topic=topic,
+                payload=json.dumps(message),
+                qos=qos,
+                retain=retain,
+                properties=properties
+            )
 
             if result.rc == mqtt.MQTT_ERR_SUCCESS:
-                self._log(f"Published to {topic}", xbmc.LOGDEBUG)
+                self._log(f"Published to {topic} (QoS={qos}, retain={retain}, expiry={message_expiry})", xbmc.LOGDEBUG)
                 return True
             else:
                 self._log(f"Failed to publish to {topic}, result code: {result.rc}", xbmc.LOGERROR)
@@ -237,22 +278,12 @@ class CloudSyncMQTT:
             return False
 
     def publish_device_status(self, status: str):
-        """Publish device online/offline status"""
+        """Publish device online/offline status with offline support"""
         topic = f"cloudsync/devices/{self.device_id}/status"
         payload = {"status": status}
 
-        try:
-            if self.client:
-                # Use retain=True for device status
-                message = {
-                    "device_id": self.device_id,
-                    "timestamp": int(time.time()),
-                    **payload
-                }
-                self.client.publish(topic, json.dumps(message), retain=True)
-                self._log(f"Published device status: {status}", xbmc.LOGDEBUG)
-        except Exception as e:
-            self._log(f"Error publishing device status: {e}", xbmc.LOGERROR)
+        # Use the new publish method with automatic parameter detection
+        self.publish(topic, payload)
 
     def process_network(self):
         """Process MQTT network events - NOT NEEDED with loop_start()"""
