@@ -63,10 +63,13 @@ class CloudSyncServiceV3:
             self.lock_file_path = os.path.join(tempfile.gettempdir(), 'cloudsync_v3.lock')
 
             try:
-                self.lock_file = open(self.lock_file_path, 'w')
                 if os.name != 'nt' and fcntl:  # Unix systems
+                    self.lock_file = open(self.lock_file_path, 'w')
                     fcntl.flock(self.lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                else:  # Windows - simpler check
+                    # Write current PID to lock file
+                    self.lock_file.write(str(os.getpid()))
+                    self.lock_file.flush()
+                else:  # Windows - check before creating
                     if os.path.exists(self.lock_file_path):
                         with open(self.lock_file_path, 'r') as f:
                             existing_pid = f.read().strip()
@@ -77,9 +80,10 @@ class CloudSyncServiceV3:
                         except (OSError, ValueError):
                             pass  # Process doesn't exist, continue
 
-                # Write current PID to lock file
-                self.lock_file.write(str(os.getpid()))
-                self.lock_file.flush()
+                    # Create lock file with current PID
+                    self.lock_file = open(self.lock_file_path, 'w')
+                    self.lock_file.write(str(os.getpid()))
+                    self.lock_file.flush()
 
             except (IOError, OSError) as e:
                 self._log(f"CloudSync V3 already running or cannot create lock file: {e}")
