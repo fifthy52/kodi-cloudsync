@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="service.cloudsync" name="CloudSync" version="3.3.1" provider-name="CloudSync">
+<addon id="service.cloudsync" name="CloudSync" version="3.3.2" provider-name="CloudSync">
   <requires>
     <import addon="xbmc.python" version="3.0.0"/>
   </requires>
@@ -14,6 +14,10 @@
     <website>https://github.com/fifthy52/kodi-cloudsync</website>
     <source>https://github.com/fifthy52/kodi-cloudsync</source>
     <news>
+v3.3.2 - MQTT 5.0 Callback Signature Fix
+- Fixed callback signature mismatch causing connection errors after successful login
+- Updated on_connect and on_disconnect callbacks for MQTT 5.0 properties parameter
+- Resolves "_on_connect() takes 5 positional arguments but 6 were given" error
 v3.3.1 - MQTT 5.0 Compatibility Fix
 - Fixed "Clean session is not used for MQTT 5.0" connection error
 - Use clean_start instead of clean_session for MQTT 5.0 compatibility
