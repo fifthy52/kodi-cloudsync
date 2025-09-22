@@ -24,6 +24,13 @@
     <setting id="sync_episodes" type="bool" label="Sync Episodes" default="true"/>
   </category>
 
+  <category label="Manual Sync">
+    <setting id="request_sync_status" type="action" label="Request Sync Status" action="RunScript(special://home/addons/service.cloudsync/resources/lib/sync_actions.py,request_sync)"/>
+    <setting id="sync_info" type="lsep" label="Requests watched status and resume points from all online devices"/>
+    <setting id="publish_all_favorites" type="action" label="Publish All My Favorites" action="RunScript(special://home/addons/service.cloudsync/resources/lib/sync_actions.py,publish_favorites)"/>
+    <setting id="favorites_info" type="lsep" label="Sends all favorites from this device as master - other devices will receive them"/>
+  </category>
+
   <category label="Advanced">
     <setting id="mqtt_device_id" type="text" label="Device ID" default="" option="hidden"/>
   </category>
