@@ -52,6 +52,36 @@ class CloudSyncServiceV3:
                 self._log("CloudSync V3 is disabled in settings")
                 return
 
+            # Service instance protection using lock file
+            import tempfile
+            import os
+            import fcntl if os.name != 'nt' else None
+
+            self.lock_file_path = os.path.join(tempfile.gettempdir(), 'cloudsync_v3.lock')
+
+            try:
+                self.lock_file = open(self.lock_file_path, 'w')
+                if os.name != 'nt':  # Unix systems
+                    fcntl.flock(self.lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                else:  # Windows - simpler check
+                    if os.path.exists(self.lock_file_path):
+                        with open(self.lock_file_path, 'r') as f:
+                            existing_pid = f.read().strip()
+                        try:
+                            os.kill(int(existing_pid), 0)  # Check if process exists
+                            self._log(f"CloudSync V3 already running (PID: {existing_pid})")
+                            return
+                        except (OSError, ValueError):
+                            pass  # Process doesn't exist, continue
+
+                # Write current PID to lock file
+                self.lock_file.write(str(os.getpid()))
+                self.lock_file.flush()
+
+            except (IOError, OSError) as e:
+                self._log(f"CloudSync V3 already running or cannot create lock file: {e}")
+                return
+
             self._log("CloudSync V3 service starting")
             self.running = True
 
@@ -114,6 +144,16 @@ class CloudSyncServiceV3:
         # Stop MQTT client
         if self.mqtt:
             self.mqtt.stop()
+
+        # Clean up lock file
+        try:
+            import os
+            if hasattr(self, 'lock_file') and self.lock_file:
+                self.lock_file.close()
+            if hasattr(self, 'lock_file_path') and os.path.exists(self.lock_file_path):
+                os.remove(self.lock_file_path)
+        except Exception as e:
+            self._log(f"Error cleaning up lock file: {e}", xbmc.LOGWARNING)
 
         self._log("CloudSync V3 service stopped")
 

@@ -98,14 +98,25 @@ class CloudSyncMQTT:
 
         try:
             # Create MQTT client with MQTT 5.0 for offline support
+            # Use device_id as base but add process ID to prevent "session taken over"
+            import os
+            unique_client_id = f"{self.device_id}_pid{os.getpid()}"
+
             self.client = mqtt.Client(
                 mqtt.CallbackAPIVersion.VERSION1,
-                client_id=self.device_id,  # Stable ID for persistent sessions
+                client_id=unique_client_id,
                 protocol=mqtt.MQTTv5       # MQTT 5.0 for message expiry support
             )
 
             # Set persistent session for MQTT 5.0 (clean_start=False)
             self.client.clean_start = False
+
+            # Set Session Expiry Interval for proper offline handling (24 hours)
+            # This ensures sessions persist for offline devices but don't accumulate indefinitely
+            session_expiry_interval = 86400  # 24 hours in seconds
+            if hasattr(self.client, '_connect_properties'):
+                self.client._connect_properties = mqtt.Properties(mqtt.PacketTypes.CONNECT)
+                self.client._connect_properties.SessionExpiryInterval = session_expiry_interval
 
             # Set credentials
             self.client.username_pw_set(self.username, self.password)
@@ -147,11 +158,23 @@ class CloudSyncMQTT:
             self.connected = True
             self._log(f"Connected to MQTT broker successfully (rc={rc})")
 
-            # Subscribe to all CloudSync topics
+            # Subscribe to all CloudSync topics first
             self._subscribe_to_topics()
 
-            # Publish device online status
-            self.publish_device_status("online")
+            # Log session information for debugging
+            if hasattr(flags, 'session_present'):
+                self._log(f"Session present: {flags.session_present}", xbmc.LOGDEBUG)
+
+            # Publish device online status after subscription (with small delay)
+            # Note: Moving this to _on_subscribe callback would be better
+            import threading
+            def delayed_status_publish():
+                import time
+                time.sleep(0.5)  # Small delay to ensure subscription is processed
+                if self.connected:
+                    self.publish_device_status("online")
+
+            threading.Thread(target=delayed_status_publish, daemon=True).start()
 
         else:
             self.connected = False
@@ -230,7 +253,8 @@ class CloudSyncMQTT:
                 qos: Optional[int] = None, retain: Optional[bool] = None,
                 message_expiry: Optional[int] = None) -> bool:
         """Publish message to MQTT topic with offline support"""
-        if not self.connected:
+        # Enhanced connection state checking
+        if not self.connected or not self.client or not self.client.is_connected():
             self._log("Cannot publish - not connected to MQTT broker", xbmc.LOGWARNING)
             return False
 
