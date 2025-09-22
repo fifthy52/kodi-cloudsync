@@ -101,9 +101,11 @@ class CloudSyncMQTT:
             self.client = mqtt.Client(
                 mqtt.CallbackAPIVersion.VERSION1,
                 client_id=self.device_id,  # Stable ID for persistent sessions
-                clean_session=False,       # Persistent session for offline message accumulation
                 protocol=mqtt.MQTTv5       # MQTT 5.0 for message expiry support
             )
+
+            # Set persistent session for MQTT 5.0 (clean_start=False)
+            self.client.clean_start = False
 
             # Set credentials
             self.client.username_pw_set(self.username, self.password)
