@@ -55,13 +55,16 @@ class CloudSyncServiceV3:
             # Service instance protection using lock file
             import tempfile
             import os
-            import fcntl if os.name != 'nt' else None
+            try:
+                import fcntl
+            except ImportError:
+                fcntl = None  # Windows doesn't have fcntl
 
             self.lock_file_path = os.path.join(tempfile.gettempdir(), 'cloudsync_v3.lock')
 
             try:
                 self.lock_file = open(self.lock_file_path, 'w')
-                if os.name != 'nt':  # Unix systems
+                if os.name != 'nt' and fcntl:  # Unix systems
                     fcntl.flock(self.lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
                 else:  # Windows - simpler check
                     if os.path.exists(self.lock_file_path):
