@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="service.cloudsync" name="CloudSync" version="3.2.2" provider-name="CloudSync">
+<addon id="service.cloudsync" name="CloudSync" version="3.3.0" provider-name="CloudSync">
   <requires>
     <import addon="xbmc.python" version="3.0.0"/>
   </requires>
   <extension point="xbmc.service" library="service.py" start="startup" />
   <extension point="xbmc.addon.metadata">
     <summary>CloudSync - Real-time MQTT Sync</summary>
-    <description>CloudSync V3 delivers instant synchronization of watched status, resume points, and favorites across multiple Kodi devices using lightweight MQTT messaging. Features real-time updates, HiveMQ Cloud integration, and zero-conflict add-only favorites sync. Note: Favorites are only added automatically - manual removal required on each device.</description>
+    <description>CloudSync V3 delivers robust synchronization of watched status, resume points, and favorites across multiple Kodi devices using advanced MQTT messaging with full offline support. Features persistent sessions, message retention, automatic reconnect sync, and zero-conflict add-only favorites. Includes manual favorites master publishing for complete device synchronization. Messages persist up to 30 days for offline devices.</description>
     <platform>all</platform>
     <language>en</language>
     <license>MIT</license>
@@ -14,6 +14,12 @@
     <website>https://github.com/fifthy52/kodi-cloudsync</website>
     <source>https://github.com/fifthy52/kodi-cloudsync</source>
     <news>
+v3.3.0 - Full Offline Support with MQTT 5.0
+- Advanced MQTT messaging with persistent sessions and message retention
+- QoS 1 delivery guarantee for critical watched/resume data (30-day expiry)
+- Automatic sync on reconnect - no manual intervention needed
+- Manual favorites master publishing for complete device synchronization
+- Simplified sync architecture leveraging MQTT broker capabilities
 v3.2.2 - Clean Settings Interface
 - Removed duplicate Device Name field
 - Removed unused connection timeout settings

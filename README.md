@@ -1,15 +1,24 @@
 # CloudSync V3 for Kodi
 
-Real-time synchronization of watched status, resume points, and favorites across multiple Kodi devices using MQTT messaging. Instant cross-device sync without databases or file conflicts.
+Robust synchronization of watched status, resume points, and favorites across multiple Kodi devices using advanced MQTT messaging with full offline support. Features persistent sessions, message retention, and automatic reconnect sync.
 
 ## ✨ Features
 
+### 🔄 Core Sync Capabilities
 - **Real-time Watched Status Sync** - Instant movie/episode playcount updates across devices
 - **Resume Points Sync** - Continue watching from exact position on any device
 - **Add-only Favorites Sync** - V3 anti-loop protection prevents sync wars between devices
-- **Web Configuration Interface** - Easy MQTT setup via browser instead of TV remote
-- **MQTT Messaging** - Lightweight, instant communication between devices
+- **Manual Favorites Master Publishing** - Complete favorites synchronization when needed
+
+### 🌐 Advanced MQTT Architecture
+- **Full Offline Support** - MQTT 5.0 with persistent sessions and message retention
+- **QoS 1 Delivery Guarantee** - Critical data (watched/resume) with 30-day message expiry
+- **Automatic Reconnect Sync** - Get missed updates instantly when devices come back online
+- **Smart Message Persistence** - Different expiry times based on data importance
 - **HiveMQ Cloud Integration** - Secure SSL/TLS cloud messaging
+
+### 🔧 User Experience
+- **Web Configuration Interface** - Easy MQTT setup via browser instead of TV remote
 - **Zero-Conflict Architecture** - No databases, no file conflicts
 - **Event-Driven Design** - React instantly to Kodi library changes
 - **Automatic Settings Reload** - Web server starts/stops instantly when settings change
@@ -62,8 +71,31 @@ CloudSync V3 uses a pure MQTT-first architecture:
 - **Reliable**: HiveMQ Cloud with SSL/TLS encryption
 - **Scalable**: Add unlimited Kodi devices to sync network
 
+## 📡 Offline Support
+
+CloudSync V3.3.0+ includes comprehensive offline support:
+
+### How It Works
+- **Persistent Sessions**: Devices maintain connection state even when offline
+- **Message Retention**: MQTT broker stores missed messages for offline devices
+- **Automatic Recovery**: When devices reconnect, they automatically receive all missed updates
+- **Smart Expiry**: Messages persist for different durations based on importance:
+  - Watched/Resume data: 30 days
+  - Favorites events: 7 days
+  - Device status: 1 day
+
+### Manual Sync Options
+- **Automatic**: No action needed - reconnect triggers automatic sync
+- **Favorites Master**: Use "Publish All My Favorites" to send complete favorites list to all devices
+
+### QoS Levels
+- **Watched/Resume**: QoS 1 (at least once delivery) with message retention
+- **Favorites**: QoS 1 (delivery guarantee) without retention (event-based)
+- **Device Status**: QoS 0 (best effort) with retention for last known state
+
 ## 🔄 Version History
 
+- **v3.3.0** - Full offline support with MQTT 5.0, persistent sessions, message retention, simplified sync architecture
 - **v3.2.2** - Clean settings interface, removed duplicate fields
 - **v3.2.1** - Automatic web server restart on settings change
 - **v3.2.0** - Web configuration interface for easy MQTT setup
