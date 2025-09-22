@@ -141,8 +141,8 @@ class CloudSyncMQTT:
             self._log(f"Error connecting to MQTT broker: {e}", xbmc.LOGERROR)
             return False
 
-    def _on_connect(self, client, userdata, flags, rc):
-        """Called when client connects to broker"""
+    def _on_connect(self, client, userdata, flags, rc, properties=None):
+        """Called when client connects to broker (MQTT 5.0 compatible)"""
         if rc == 0:
             self.connected = True
             self._log(f"Connected to MQTT broker successfully (rc={rc})")
@@ -157,8 +157,8 @@ class CloudSyncMQTT:
             self.connected = False
             self._log(f"Failed to connect to MQTT broker, return code {rc}", xbmc.LOGERROR)
 
-    def _on_disconnect(self, client, userdata, rc):
-        """Called when client disconnects from broker"""
+    def _on_disconnect(self, client, userdata, rc, properties=None):
+        """Called when client disconnects from broker (MQTT 5.0 compatible)"""
         self.connected = False
         if rc != 0:
             self._log(f"Unexpected disconnection from MQTT broker, return code {rc}", xbmc.LOGWARNING)
