@@ -131,7 +131,6 @@ class CloudSyncServiceV3:
         self.mqtt.register_handler("cloudsync/devices/", self._handle_device_message)
 
         # Manual sync handlers
-        self.mqtt.register_handler("cloudsync/sync/request", self._handle_sync_request)
         self.mqtt.register_handler("cloudsync/favorites/master_publish", self._handle_master_favorites)
 
         self._log("MQTT message handlers registered")
@@ -466,33 +465,6 @@ class CloudSyncServiceV3:
 
         self._log("Main service loop ended")
 
-    def _handle_sync_request(self, topic: str, payload: dict):
-        """Handle sync request from another device"""
-        try:
-            self._log(f"Received sync request: {topic}", xbmc.LOGINFO)
-
-            # Skip messages from our own device
-            device_id = payload.get('device_id')
-            if device_id == self._get_device_id():
-                self._log("Skipping sync request from own device", xbmc.LOGDEBUG)
-                return
-
-            request_type = payload.get('request_type')
-            requested_data = payload.get('requested_data', [])
-            requestor_device = payload.get('requestor_device')
-
-            if request_type == "status" and requestor_device:
-                self._log(f"Processing sync status request from {requestor_device}")
-
-                # Respond with current watched/resume data if requested
-                if "watched" in requested_data:
-                    self._publish_current_watched_status(requestor_device)
-
-                if "resume" in requested_data:
-                    self._publish_current_resume_points(requestor_device)
-
-        except Exception as e:
-            self._log(f"Error handling sync request: {e}", xbmc.LOGERROR)
 
     def _handle_master_favorites(self, topic: str, payload: dict):
         """Handle master favorites publish from another device"""
@@ -527,23 +499,6 @@ class CloudSyncServiceV3:
         except Exception as e:
             self._log(f"Error handling master favorites: {e}", xbmc.LOGERROR)
 
-    def _publish_current_watched_status(self, requestor_device: str):
-        """Publish current watched status in response to sync request"""
-        try:
-            # This is a simplified implementation - in practice you'd query the database
-            self._log(f"Publishing current watched status to {requestor_device}")
-            # TODO: Implement actual watched status collection and publishing
-        except Exception as e:
-            self._log(f"Error publishing watched status: {e}", xbmc.LOGERROR)
-
-    def _publish_current_resume_points(self, requestor_device: str):
-        """Publish current resume points in response to sync request"""
-        try:
-            # This is a simplified implementation - in practice you'd query the database
-            self._log(f"Publishing current resume points to {requestor_device}")
-            # TODO: Implement actual resume points collection and publishing
-        except Exception as e:
-            self._log(f"Error publishing resume points: {e}", xbmc.LOGERROR)
 
     def _replace_all_favorites(self, favorites: list) -> bool:
         """Replace all favorites with master list"""

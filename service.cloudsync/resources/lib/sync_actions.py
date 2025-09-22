@@ -3,7 +3,7 @@
 
 """
 CloudSync V3 - Manual Sync Actions
-Handles user-initiated sync requests and favorites publishing
+Handles user-initiated favorites publishing as master device
 """
 
 import json
@@ -25,7 +25,7 @@ except ImportError:
 
 
 class SyncActions:
-    """Handles manual sync actions from settings"""
+    """Handles manual favorites publishing from settings"""
 
     def __init__(self):
         self.addon = xbmcaddon.Addon('service.cloudsync')
@@ -33,70 +33,25 @@ class SyncActions:
         self._init_mqtt()
 
     def _init_mqtt(self):
-        """Initialize MQTT client for sync actions"""
+        """Initialize MQTT client for favorites publishing"""
         try:
             self.mqtt = CloudSyncMQTT()
             if not self.mqtt.configure():
-                xbmc.log("CloudSync V3: MQTT not configured for sync actions", xbmc.LOGWARNING)
+                xbmc.log("CloudSync V3: MQTT not configured for favorites publishing", xbmc.LOGWARNING)
                 return
 
             # Don't start full connection, just configure for publishing
             if not self.mqtt.connect():
-                xbmc.log("CloudSync V3: Failed to connect MQTT for sync actions", xbmc.LOGERROR)
+                xbmc.log("CloudSync V3: Failed to connect MQTT for favorites publishing", xbmc.LOGERROR)
                 self.mqtt = None
         except Exception as e:
-            xbmc.log(f"CloudSync V3: Error initializing MQTT for sync: {e}", xbmc.LOGERROR)
+            xbmc.log(f"CloudSync V3: Error initializing MQTT for favorites publishing: {e}", xbmc.LOGERROR)
             self.mqtt = None
 
     def _log(self, message: str, level: int = xbmc.LOGINFO):
         """Centralized logging"""
-        xbmc.log(f"CloudSync V3 Sync: {message}", level)
+        xbmc.log(f"CloudSync V3 Favorites: {message}", level)
 
-    def request_sync_status(self):
-        """Request sync status from all online devices"""
-        if not self.mqtt or not self.mqtt.is_connected():
-            xbmcgui.Dialog().notification(
-                "CloudSync V3",
-                "MQTT not connected - cannot request sync",
-                xbmcgui.NOTIFICATION_ERROR, 3000
-            )
-            return
-
-        try:
-            # Publish sync request to special topic
-            sync_request_topic = "cloudsync/sync/request"
-            payload = {
-                "request_type": "status",
-                "requested_data": ["watched", "resume"],
-                "requestor_device": self.mqtt.device_id,
-                "request_id": f"sync_{int(time.time())}"
-            }
-
-            # Use QoS 1 to ensure delivery, no retain (it's a one-time request)
-            success = self.mqtt.publish(sync_request_topic, payload, qos=1, retain=False)
-
-            if success:
-                self._log("Sync status request published successfully")
-                xbmcgui.Dialog().notification(
-                    "CloudSync V3",
-                    "Sync status requested from online devices",
-                    xbmcgui.NOTIFICATION_INFO, 3000
-                )
-            else:
-                self._log("Failed to publish sync status request", xbmc.LOGERROR)
-                xbmcgui.Dialog().notification(
-                    "CloudSync V3",
-                    "Failed to send sync request",
-                    xbmcgui.NOTIFICATION_ERROR, 3000
-                )
-
-        except Exception as e:
-            self._log(f"Error requesting sync status: {e}", xbmc.LOGERROR)
-            xbmcgui.Dialog().notification(
-                "CloudSync V3",
-                f"Sync request error: {str(e)}",
-                xbmcgui.NOTIFICATION_ERROR, 3000
-            )
 
     def publish_all_favorites(self):
         """Publish all favorites from this device as master"""
@@ -199,21 +154,19 @@ class SyncActions:
 
 
 def main():
-    """Main entry point for sync actions"""
+    """Main entry point for favorites actions"""
     if len(sys.argv) < 2:
-        xbmc.log("CloudSync V3: No sync action specified", xbmc.LOGWARNING)
+        xbmc.log("CloudSync V3: No action specified", xbmc.LOGWARNING)
         return
 
     action = sys.argv[1]
     sync_actions = SyncActions()
 
     try:
-        if action == "request_sync":
-            sync_actions.request_sync_status()
-        elif action == "publish_favorites":
+        if action == "publish_favorites":
             sync_actions.publish_all_favorites()
         else:
-            xbmc.log(f"CloudSync V3: Unknown sync action: {action}", xbmc.LOGWARNING)
+            xbmc.log(f"CloudSync V3: Unknown action: {action}", xbmc.LOGWARNING)
     finally:
         sync_actions.cleanup()
 
