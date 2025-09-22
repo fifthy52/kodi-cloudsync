@@ -484,13 +484,15 @@ class CloudSyncServiceV3:
         while self.running and not self.kodi_monitor.abortRequested():
             try:
                 # MQTT background loop handles network processing automatically
-                # Just check connection status periodically
+                # Avoid frequent reconnection attempts that create multiple clients
                 if self.mqtt and not self.mqtt.is_connected():
-                    self._log("MQTT disconnected - attempting reconnect", xbmc.LOGWARNING)
-                    if self.mqtt.start():
-                        self._log("MQTT reconnected successfully", xbmc.LOGINFO)
-                    else:
-                        self._log("MQTT reconnect failed", xbmc.LOGWARNING)
+                    # Only attempt reconnect every 10 seconds to avoid race conditions
+                    if loop_counter % 10 == 0:
+                        self._log("MQTT disconnected - attempting reconnect", xbmc.LOGWARNING)
+                        if self.mqtt.start():
+                            self._log("MQTT reconnected successfully", xbmc.LOGINFO)
+                        else:
+                            self._log("MQTT reconnect failed", xbmc.LOGWARNING)
 
                 # Periodic status logging (every 5 minutes)
                 loop_counter += 1

@@ -104,6 +104,9 @@ class CloudSyncMQTT:
             import time
             unique_client_id = f"{self.device_id}_t{int(time.time())}_pid{os.getpid()}"
 
+            # DEBUG: Log the client ID being used
+            self._log(f"Using MQTT client ID: {unique_client_id}", xbmc.LOGINFO)
+
             self.client = mqtt.Client(
                 mqtt.CallbackAPIVersion.VERSION1,
                 client_id=unique_client_id,
